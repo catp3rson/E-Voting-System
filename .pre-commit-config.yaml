@@ -1,0 +1,16 @@
+repos:
+- repo: https://github.com/pre-commit/pre-commit-hooks
+  rev: v4.4.0
+  hooks:
+  - id: detect-private-key
+  - id: end-of-file-fixer
+  - id: fix-encoding-pragma
+  - id: mixed-line-ending
+  - id: trailing-whitespace
+- repo: https://github.com/doublify/pre-commit-rust
+  rev: v1.0
+  hooks:
+  - id: fmt
+    args: ['--verbose', '--edition', '2018', '--']
+  - id: clippy
+
