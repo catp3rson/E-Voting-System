@@ -61,9 +61,9 @@ pub(crate) fn update_sig_verification_state(
         // enforce_hash_copy() internal inputs are set to 0 at almost every step.
         // Hence we manually set them to zero for the final hash iteration, and this will
         // carry over until the end of the trace
-        for i in 0..rescue::RATE_WIDTH {
-            state[PROJECTIVE_POINT_WIDTH * 2 + rescue::RATE_WIDTH + 6 + i] = BaseElement::ZERO;
-        }
+        state[PROJECTIVE_POINT_WIDTH * 2 + rescue::RATE_WIDTH + 6
+            ..PROJECTIVE_POINT_WIDTH * 2 + rescue::RATE_WIDTH * 2 + 6]
+            .fill(BaseElement::ZERO);
     }
 
     // enforcing scalar multiplications

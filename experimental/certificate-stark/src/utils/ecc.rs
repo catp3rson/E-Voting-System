@@ -35,6 +35,43 @@ pub const GENERATOR: [BaseElement; AFFINE_POINT_WIDTH] = [
     BaseElement::from_raw_unchecked(0xe13dca26b2ac6ab),
 ];
 
+// second generator
+// pub const GENERATOR2: [BaseElement; AFFINE_POINT_WIDTH] = [
+//     BaseElement::from_raw_unchecked(0x117b60e7080e6f12),
+//     BaseElement::from_raw_unchecked(0x3e06f5228636ce07),
+//     BaseElement::from_raw_unchecked(0x31acbf73a64fd291),
+//     BaseElement::from_raw_unchecked(0x3080118a5893d903),
+//     BaseElement::from_raw_unchecked(0x22f53c7ecfeb56d0),
+//     BaseElement::from_raw_unchecked(0x1e138d6314ccd12f),
+//     BaseElement::from_raw_unchecked(0x16967a8af4fa8af3),
+//     BaseElement::from_raw_unchecked(0x2b97dc1afb38d09c),
+//     BaseElement::from_raw_unchecked(0x15df6acf64e1fe41),
+//     BaseElement::from_raw_unchecked(0x18a2a33df8938fb6),
+//     BaseElement::from_raw_unchecked(0x3b64b2ffbc257330),
+//     BaseElement::from_raw_unchecked(0x1e74f61082f15620),
+// ];
+
+pub const IDENTITY: [BaseElement; PROJECTIVE_POINT_WIDTH] = [
+    BaseElement::ZERO,
+    BaseElement::ZERO,
+    BaseElement::ZERO,
+    BaseElement::ZERO,
+    BaseElement::ZERO,
+    BaseElement::ZERO,
+    BaseElement::ONE,
+    BaseElement::ZERO,
+    BaseElement::ZERO,
+    BaseElement::ZERO,
+    BaseElement::ZERO,
+    BaseElement::ZERO,
+    BaseElement::ZERO,
+    BaseElement::ZERO,
+    BaseElement::ZERO,
+    BaseElement::ZERO,
+    BaseElement::ZERO,
+    BaseElement::ZERO,
+];
+
 pub const B3: [BaseElement; POINT_COORDINATE_WIDTH] = [
     BaseElement::new(4580716109223965136),
     BaseElement::new(2805468717395796313),
@@ -60,8 +97,22 @@ pub(crate) fn apply_point_addition(state: &mut [BaseElement], point: &[BaseEleme
 }
 
 /// Apply a point mixed addition between the current `state` registers with a given point.
+/// Addition between a point in projective coordinates (state[..PROJECTIVE_POINT_WIDTH])
+/// and a point in affine coordinates (point)
 pub(crate) fn apply_point_addition_mixed(state: &mut [BaseElement], point: &[BaseElement]) {
     if state[PROJECTIVE_POINT_WIDTH] == BaseElement::ONE {
+        compute_add_mixed(state, point)
+    };
+}
+
+/// Similar to apply_point_addition_bit
+pub(crate) fn apply_point_addition_mixed_bit(
+    state: &mut [BaseElement],
+    point: &[BaseElement],
+    bit_position: usize,
+) {
+    debug_assert!(bit_position < state.len(), "Out of bound read.");
+    if state[bit_position] == BaseElement::ONE {
         compute_add_mixed(state, point)
     };
 }
@@ -95,6 +146,26 @@ pub(crate) fn enforce_point_doubling<E: FieldElement + From<BaseElement>>(
         flag,
         is_binary(current[PROJECTIVE_POINT_WIDTH]),
     );
+}
+
+pub(crate) fn enforce_point_doubling_bit<E: FieldElement + From<BaseElement>>(
+    result: &mut [E],
+    current: &[E],
+    next: &[E],
+    flag: E,
+) {
+    let mut step1 = [E::ZERO; PROJECTIVE_POINT_WIDTH];
+    step1.copy_from_slice(&current[0..PROJECTIVE_POINT_WIDTH]);
+
+    let mut step2 = [E::ZERO; PROJECTIVE_POINT_WIDTH];
+    step2.copy_from_slice(&next[0..PROJECTIVE_POINT_WIDTH]);
+
+    compute_double(&mut step1);
+
+    // Make sure that the results are equal
+    for i in 0..PROJECTIVE_POINT_WIDTH {
+        result.agg_constraint(i, flag, are_equal(step2[i], step1[i]));
+    }
 }
 
 /// When flag = 1, enforces constraints for performing a mixed point addition
@@ -137,6 +208,60 @@ pub(crate) fn enforce_point_addition_mixed<E: FieldElement + From<BaseElement>>(
     );
 }
 
+/// When flag = 1, enforces constraints for performing a mixed point addition
+/// between current and point.
+pub(crate) fn enforce_point_addition_mixed_bit<E: FieldElement + From<BaseElement>>(
+    result: &mut [E],
+    current: &[E],
+    next: &[E],
+    point: &[E],
+    bit_position: usize,
+    flag: E,
+) {
+    debug_assert!(bit_position < current.len(), "Out of bound read.");
+    let mut step1 = [E::ZERO; PROJECTIVE_POINT_WIDTH];
+    step1.copy_from_slice(&current[0..PROJECTIVE_POINT_WIDTH]);
+
+    let mut step2 = [E::ZERO; PROJECTIVE_POINT_WIDTH];
+    step2.copy_from_slice(&next[0..PROJECTIVE_POINT_WIDTH]);
+
+    compute_add_mixed(&mut step1, point);
+    let adding_bit = current[bit_position];
+
+    for i in 0..PROJECTIVE_POINT_WIDTH {
+        result.agg_constraint(
+            i,
+            flag,
+            are_equal(
+                step2[i],
+                adding_bit * step1[i] + not(adding_bit) * current[i],
+            ),
+        );
+    }
+}
+
+/// When flag = 1, enforces constraints for performing a point addition
+/// between current and point in projective coordinates.
+pub(crate) fn enforce_point_addition<E: FieldElement + From<BaseElement>>(
+    result: &mut [E],
+    current: &[E],
+    next: &[E],
+    point: &[E],
+    flag: E,
+) {
+    let mut step1 = [E::ZERO; PROJECTIVE_POINT_WIDTH];
+    step1.copy_from_slice(&current[0..PROJECTIVE_POINT_WIDTH]);
+
+    let mut step2 = [E::ZERO; PROJECTIVE_POINT_WIDTH];
+    step2.copy_from_slice(&next[0..PROJECTIVE_POINT_WIDTH]);
+
+    compute_add(&mut step1, point);
+
+    for i in 0..PROJECTIVE_POINT_WIDTH {
+        result.agg_constraint(i, flag, are_equal(step2[i], step1[i]));
+    }
+}
+
 /// When flag = 1, enforces constraints for performing a point addition
 /// between current and point in projective coordinates.
 ///
@@ -171,8 +296,92 @@ pub(crate) fn enforce_point_addition_reduce_x<E: FieldElement + From<BaseElement
     }
 }
 
+/// When flag = 1, enforces constraints for performing a point addition
+/// between current and point in projective coordinates.
+///
+/// In the current implementation, this is being used only once, at the final step,
+/// so we add a division of register 0 by register 2 to obtain the final affine
+/// x coordinate (computations are being done internally in projective coordinates)
+pub(crate) fn enforce_point_addition_reduce_affine<E: FieldElement + From<BaseElement>>(
+    result: &mut [E],
+    current: &[E],
+    next: &[E],
+    point: &[E],
+    flag: E,
+) {
+    let mut step1 = [E::ZERO; PROJECTIVE_POINT_WIDTH];
+    step1.copy_from_slice(&current[0..PROJECTIVE_POINT_WIDTH]);
+
+    let mut step2 = [E::ZERO; PROJECTIVE_POINT_WIDTH];
+    step2.copy_from_slice(&next[0..PROJECTIVE_POINT_WIDTH]);
+
+    compute_add(&mut step1, point);
+
+    let x_z = mul_fp6(
+        &step2[0..POINT_COORDINATE_WIDTH],
+        &step1[AFFINE_POINT_WIDTH..PROJECTIVE_POINT_WIDTH],
+    );
+    let y_z = mul_fp6(
+        &step2[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH],
+        &step1[AFFINE_POINT_WIDTH..PROJECTIVE_POINT_WIDTH],
+    );
+
+    for i in 0..POINT_COORDINATE_WIDTH {
+        result.agg_constraint(i, flag, are_equal(x_z[i], step1[i]));
+    }
+    for i in 0..POINT_COORDINATE_WIDTH {
+        result.agg_constraint(
+            i,
+            flag,
+            are_equal(y_z[i], step1[i + POINT_COORDINATE_WIDTH]),
+        );
+    }
+    for i in AFFINE_POINT_WIDTH..PROJECTIVE_POINT_WIDTH {
+        result.agg_constraint(i, flag, are_equal(step2[i], step1[i]));
+    }
+}
+
 // HELPER FUNCTIONS
 // ================================================================================================
+/// Reduce a point in projective coordinates to affine coordinates, returned as [X, Y]
+#[inline(always)]
+pub(crate) fn reduce_to_affine(point: &[BaseElement]) -> [BaseElement; AFFINE_POINT_WIDTH] {
+    let mut result = [BaseElement::ZERO; AFFINE_POINT_WIDTH];
+    let z_inv = invert_fp6(&point[AFFINE_POINT_WIDTH..PROJECTIVE_POINT_WIDTH]);
+    result[..POINT_COORDINATE_WIDTH]
+        .copy_from_slice(&mul_fp6(&point[..POINT_COORDINATE_WIDTH], &z_inv));
+    result[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH].copy_from_slice(&mul_fp6(
+        &point[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH],
+        &z_inv,
+    ));
+    result
+}
+
+/// Compute the negation of a point in affine coordinates, returned as [X, -Y]
+#[inline(always)]
+pub(crate) fn compute_negation_affine<E: FieldElement + From<BaseElement>>(
+    point: &[E],
+) -> [E; AFFINE_POINT_WIDTH] {
+    let mut result = [E::ZERO; AFFINE_POINT_WIDTH];
+    result[..POINT_COORDINATE_WIDTH].copy_from_slice(&point[..POINT_COORDINATE_WIDTH]);
+    result[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH]
+        .copy_from_slice(&neg_fp6(&point[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH]));
+    result
+}
+
+/// Compute the negation of a point in projective coordinates, returned as [X, -Y, Z]
+#[inline(always)]
+pub(crate) fn compute_negation_projective<E: FieldElement + From<BaseElement>>(
+    point: &[E],
+) -> [E; PROJECTIVE_POINT_WIDTH] {
+    let mut result = [E::ZERO; PROJECTIVE_POINT_WIDTH];
+    result[..POINT_COORDINATE_WIDTH].copy_from_slice(&point[..POINT_COORDINATE_WIDTH]);
+    result[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH]
+        .copy_from_slice(&neg_fp6(&point[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH]));
+    result[AFFINE_POINT_WIDTH..PROJECTIVE_POINT_WIDTH]
+        .copy_from_slice(&point[AFFINE_POINT_WIDTH..PROJECTIVE_POINT_WIDTH]);
+    result
+}
 
 /// Compute the double of the current point, stored as [X,Y,Z].
 /// Doubling is computed as:
@@ -183,7 +392,7 @@ pub(crate) fn enforce_point_addition_reduce_x<E: FieldElement + From<BaseElement
 ///
 /// `Z2 = 8Y^3.Z`
 #[inline(always)]
-fn compute_double<E: FieldElement + From<BaseElement>>(state: &mut [E]) {
+pub(crate) fn compute_double<E: FieldElement + From<BaseElement>>(state: &mut [E]) {
     let self_x = &state[0..POINT_COORDINATE_WIDTH];
     let self_y = &state[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH];
     let self_z = &state[AFFINE_POINT_WIDTH..PROJECTIVE_POINT_WIDTH];
@@ -253,7 +462,7 @@ fn compute_double<E: FieldElement + From<BaseElement>>(state: &mut [E]) {
 /// `Z3 = (Y1.Z2 + Y2.Z1) (Y1.Y2 + (X1.Z2 + X2.Z1) + 3B.Z1.Z2)
 ///         + (X1.Y2 + X2.Y1) (3X1.X2 + Z1.Z2)`
 #[inline(always)]
-fn compute_add<E: FieldElement + From<BaseElement>>(state: &mut [E], point: &[E]) {
+pub(crate) fn compute_add<E: FieldElement + From<BaseElement>>(state: &mut [E], point: &[E]) {
     let self_x = &state[0..POINT_COORDINATE_WIDTH];
     let self_y = &state[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH];
     let self_z = &state[AFFINE_POINT_WIDTH..PROJECTIVE_POINT_WIDTH];
@@ -340,7 +549,7 @@ fn compute_add<E: FieldElement + From<BaseElement>>(state: &mut [E], point: &[E]
 /// `Z3 = (Y1 + Y2.Z1) (Y1.Y2 + (X1 + X2.Z1) + 3B.Z1)
 ///         + (X1.Y2 + X2.Y1) (3X1.X2 + Z1)`
 #[inline(always)]
-fn compute_add_mixed<E: FieldElement + From<BaseElement>>(state: &mut [E], point: &[E]) {
+pub(crate) fn compute_add_mixed<E: FieldElement + From<BaseElement>>(state: &mut [E], point: &[E]) {
     let self_x = &state[0..POINT_COORDINATE_WIDTH];
     let self_y = &state[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH];
     let self_z = &state[AFFINE_POINT_WIDTH..PROJECTIVE_POINT_WIDTH];

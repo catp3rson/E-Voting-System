@@ -21,6 +21,9 @@ pub(crate) mod periodic_columns;
 // Public for benchmarking purposes
 pub mod rescue;
 
+// #[cfg(test)]
+// mod tests;
+
 // CONSTRAINT EVALUATION HELPERS
 // ================================================================================================
 

@@ -10,7 +10,7 @@ use winterfell::{FieldExtension, HashFunction, ProofOptions};
 
 #[test]
 fn schnorr_test_basic_proof_verification() {
-    let schnorr = super::SchnorrExample::new(build_options(1), 2);
+    let schnorr = super::SchnorrExample::new(build_options(1), 1);
     let proof = schnorr.prove();
     assert!(schnorr.verify(proof).is_ok());
 }

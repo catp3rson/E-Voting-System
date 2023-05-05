@@ -204,6 +204,7 @@ pub(crate) fn sign(
 
     let h = hash_message(r_point.get_x(), message);
     let mut h_bytes = [0u8; 32];
+    // take the first 4 elements of the hash
     for (i, h_word) in h.iter().enumerate().take(4) {
         h_bytes[8 * i..8 * i + 8].copy_from_slice(&h_word.to_bytes());
     }

@@ -119,6 +119,7 @@ impl Rescue63 {
             }
         }
 
+        // apply permutation if data.len() % RATE_WIDTH != 0
         if i > 0 {
             // TODO: apply proper padding
             apply_permutation(&mut state);

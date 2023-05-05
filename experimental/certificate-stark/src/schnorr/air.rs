@@ -86,6 +86,7 @@ impl Air for SchnorrAir {
         let hash_flag = periodic_values[AFFINE_POINT_WIDTH + 7];
         let hash_internal_inputs =
             &periodic_values[AFFINE_POINT_WIDTH + 8..AFFINE_POINT_WIDTH + 15];
+        // Rescue round constants
         let ark = &periodic_values[AFFINE_POINT_WIDTH + 15..];
 
         let copy_hash_flag = not(hash_flag) * global_mask;
@@ -259,22 +260,17 @@ impl Air for SchnorrAir {
         ];
 
         for message_index in 0..self.signatures.len() {
-            for i in 0..SIG_CYCLE_LENGTH {
-                for (j, input) in hash_intermediate_inputs
-                    .iter_mut()
-                    .enumerate()
-                    .take(HASH_RATE_WIDTH)
-                {
-                    if i < NUM_HASH_ITER - 1 {
-                        input[i * HASH_CYCLE_LENGTH
-                            + NUM_HASH_ROUNDS
-                            + message_index * SIG_CYCLE_LENGTH] =
-                            self.messages[message_index][j + i * HASH_RATE_WIDTH];
-                    }
+            for i in 0..NUM_HASH_ITER - 1 {
+                for (j, input) in hash_intermediate_inputs.iter_mut().enumerate() {
+                    input[i * HASH_CYCLE_LENGTH
+                        + NUM_HASH_ROUNDS
+                        + message_index * SIG_CYCLE_LENGTH] =
+                        self.messages[message_index][j + i * HASH_RATE_WIDTH];
                 }
-                for (j, key) in pub_keys.iter_mut().enumerate().take(AFFINE_POINT_WIDTH) {
-                    key[i + message_index * SIG_CYCLE_LENGTH] = self.messages[message_index][j];
-                }
+            }
+            for (i, key) in pub_keys.iter_mut().enumerate() {
+                key[message_index * SIG_CYCLE_LENGTH..(message_index + 1) * SIG_CYCLE_LENGTH]
+                    .fill(self.messages[message_index][i]);
             }
         }
 
@@ -377,15 +373,11 @@ pub(crate) fn periodic_columns() -> Vec<Vec<BaseElement>> {
         SIG_CYCLE_LENGTH - global_mask.len()
     ]);
 
-    // ARK constant values for the Rescue hash rounds
-    let mut rescue_constants = rescue::get_round_constants();
-
     let mut result = vec![global_mask];
     result.append(&mut vec![scalar_mult_flag]);
     result.append(&mut vec![point_doubling_flag]);
     result.append(&mut hash_digest_register_flag);
     result.append(&mut vec![hash_flag]);
-    result.append(&mut rescue_constants);
 
     result
 }

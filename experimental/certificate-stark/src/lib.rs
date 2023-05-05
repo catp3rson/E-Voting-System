@@ -20,6 +20,8 @@
 #[macro_use]
 extern crate alloc;
 
+/// The CDS sub-AIR program
+pub mod cds;
 /// The Merkle sub-AIR programs
 pub mod merkle;
 /// The range proof sub-AIR program

@@ -6,34 +6,34 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use certificate_stark::schnorr::get_example;
+use certificate_stark::cds::get_example;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::time::Duration;
 
 const SIZES: [usize; 6] = [1, 2, 4, 8, 16, 32];
 
-fn schnorr_bench(c: &mut Criterion) {
-    let mut group = c.benchmark_group("schnorr");
+fn cds_bench(c: &mut Criterion) {
+    let mut group = c.benchmark_group("cds");
     group.sample_size(10);
     group.measurement_time(Duration::from_secs(400));
 
     for &size in SIZES.iter() {
-        let schnorr = get_example(size);
+        let cds = get_example(size);
         
         group.bench_function(BenchmarkId::new("prove", size), |bench| {
-            bench.iter(|| schnorr.prove());
+            bench.iter(|| cds.prove());
         });
 
-        let proof = schnorr.prove();
+        let (pub_inputs, proof) = cds.prove();
 
-        println!("Proof size for schnorr/prove/{}: {} bytes", size, proof.to_bytes().len());
+        println!("Proof size for cds/prove/{}: {} bytes", size, proof.to_bytes().len());
 
         group.bench_function(BenchmarkId::new("verify", size), |bench| {
-            bench.iter(|| schnorr.verify(proof.clone()));
+            bench.iter(|| cds.verify(proof.clone(), pub_inputs.clone()));
         });
     }
     group.finish();
 }
 
-criterion_group!(schnorr_group, schnorr_bench);
-criterion_main!(schnorr_group);
+criterion_group!(cds_group, cds_bench);
+criterion_main!(cds_group);

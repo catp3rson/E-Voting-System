@@ -12,6 +12,7 @@ categories = ["cryptography", "no-std"]
 keywords = ["cryptography", "crypto", "stark", "zero-knowledge"]
 
 [dependencies]
+unroll = "0.1.5"
 bitvec = { path = "../bitvec-0.22.3", default-features = false }
 getrandom = { version = "0.2", default-features = false, features = ["js"] }
 hex = { version = "0.4", default-features = false, features = ["alloc"] }
@@ -38,7 +39,6 @@ lto = true
 codegen-units = 1
 lto = true
 
-
 [[bench]]
 name = "merkle"
 harness = false
@@ -53,6 +53,10 @@ harness = false
 
 [[bench]]
 name = "schnorr"
+harness = false
+
+[[bench]]
+name = "cds"
 harness = false
 
 [[bench]]

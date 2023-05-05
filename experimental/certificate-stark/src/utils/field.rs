@@ -68,3 +68,14 @@ pub(crate) fn enforce_double_and_add_step_constrained<E: FieldElement>(
     // make sure that the results are equal
     result.agg_constraint(value_position, flag, are_equal(step2, step1));
 }
+
+pub(crate) fn enforce_copy<const NREGS: usize, E: FieldElement + From<BaseElement>>(
+    result: &mut [E],
+    current: &[E],
+    next: &[E],
+    flag: E,
+) {
+    for i in 0..NREGS {
+        result.agg_constraint(i, flag, are_equal(current[i], next[i]));
+    }
+}
