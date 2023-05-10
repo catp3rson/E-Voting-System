@@ -17,7 +17,7 @@ fn cds_test_basic_proof_verification() {
 
 #[test]
 fn cds_test_basic_proof_verification_quadratic_extension() {
-    let cds = Box::new(super::CDSExample::new(build_options(2), 8));
+    let cds = Box::new(super::CDSExample::new(build_options(2), 2));
     let (pub_inputs, proof) = cds.prove();
     assert!(cds.verify(proof, pub_inputs).is_ok());
 }

@@ -24,6 +24,8 @@ extern crate alloc;
 pub mod cds;
 /// The Merkle sub-AIR programs
 pub mod merkle;
+/// The second Merkle sub-AIR programs
+pub mod merkle_proof;
 /// The range proof sub-AIR program
 pub mod range;
 /// The Schnorr signature sub-AIR program
