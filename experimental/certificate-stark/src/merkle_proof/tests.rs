@@ -10,8 +10,7 @@ use winterfell::{FieldExtension, HashFunction, ProofOptions};
 fn merkle_test_basic_proof_verification() {
     let merkle = super::MerkleExample::new(build_options(1), 8);
     let proof = merkle.prove();
-    let res = merkle.verify(proof);
-    println!("{:?}", res.unwrap());
+    assert!(merkle.verify(proof).is_ok());
 }
 
 #[test]
@@ -36,7 +35,6 @@ fn merkle_test_basic_proof_verification_fail() {
     assert!(verified.is_err());
 }
 
-
 fn build_options(extension: u8) -> ProofOptions {
     ProofOptions::new(
         42,
@@ -52,4 +50,3 @@ fn build_options(extension: u8) -> ProofOptions {
         256,
     )
 }
-

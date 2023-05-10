@@ -44,6 +44,10 @@ name = "merkle"
 harness = false
 
 [[bench]]
+name = "merkle_proof"
+harness = false
+
+[[bench]]
 name = "range"
 harness = false
 

@@ -15,7 +15,7 @@ const SIZES: [usize; 3] = [1, 16, 128];
 fn merkle_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("merkle");
     group.sample_size(10);
-    group.measurement_time(Duration::from_secs(20));
+    group.measurement_time(Duration::from_secs(100));
 
     for &size in SIZES.iter() {
         let merkle = get_example(size);

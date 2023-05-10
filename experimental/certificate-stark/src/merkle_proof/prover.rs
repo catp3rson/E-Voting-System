@@ -9,11 +9,10 @@ use crate::{
 };
 
 use super::{
-    constants::{MERKLE_CYCLE_LENGTH, TREE_DEPTH, TRACE_WIDTH},
+    constants::{MERKLE_CYCLE_LENGTH, TRACE_WIDTH, TREE_DEPTH},
     trace::{init_merkle_verification_state, update_merkle_verification_state},
     BaseElement, FieldElement, MerkleAir, ProofOptions, Prover, PublicInputs, TraceTable,
 };
-
 
 // MERKLE PROVER
 // ================================================================================================

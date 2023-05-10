@@ -4,8 +4,8 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
+use super::constants::{MERKLE_CYCLE_LENGTH, TRACE_WIDTH};
 use super::{BaseElement, FieldElement};
-use super::constants::{TRACE_WIDTH, MERKLE_CYCLE_LENGTH};
 use crate::{
     schnorr::constants::{AFFINE_POINT_WIDTH, POINT_COORDINATE_WIDTH},
     utils::{
@@ -119,7 +119,9 @@ impl Air for MerkleAir {
         for (key_index, public_key) in self.public_keys.iter().enumerate() {
             for i in 0..POINT_COORDINATE_WIDTH {
                 assertions.push(Assertion::single(
-                    i + 1, key_index * MERKLE_CYCLE_LENGTH, public_key[i]
+                    i + 1,
+                    key_index * MERKLE_CYCLE_LENGTH,
+                    public_key[i],
                 ));
                 assertions.push(Assertion::single(
                     i + RATE_WIDTH + 1,
@@ -129,11 +131,15 @@ impl Air for MerkleAir {
             }
             for i in POINT_COORDINATE_WIDTH + 1..STATE_WIDTH + 1 {
                 assertions.push(Assertion::single(
-                    i, key_index * MERKLE_CYCLE_LENGTH, BaseElement::ZERO
+                    i,
+                    key_index * MERKLE_CYCLE_LENGTH,
+                    BaseElement::ZERO,
                 ));
             }
             assertions.push(Assertion::single(
-                0, key_index * MERKLE_CYCLE_LENGTH + HASH_CYCLE_LENGTH, BaseElement::ZERO
+                0,
+                key_index * MERKLE_CYCLE_LENGTH + HASH_CYCLE_LENGTH,
+                BaseElement::ZERO,
             ));
         }
 
@@ -145,7 +151,7 @@ impl Air for MerkleAir {
                 i + 1,
                 last_cycle_step,
                 MERKLE_CYCLE_LENGTH,
-                self.tree_root[i]
+                self.tree_root[i],
             ));
         }
 
@@ -164,11 +170,15 @@ impl Air for MerkleAir {
 
 pub(crate) fn transition_constraint_degrees() -> Vec<TransitionConstraintDegree> {
     // First scalar multiplication
-    let mut degrees = vec![
-        TransitionConstraintDegree::with_cycles(2, vec![HASH_CYCLE_LENGTH, MERKLE_CYCLE_LENGTH]),
-    ];
+    let mut degrees = vec![TransitionConstraintDegree::with_cycles(
+        2,
+        vec![HASH_CYCLE_LENGTH, MERKLE_CYCLE_LENGTH],
+    )];
     degrees.append(&mut vec![
-        TransitionConstraintDegree::with_cycles(3, vec![HASH_CYCLE_LENGTH, MERKLE_CYCLE_LENGTH]);
+        TransitionConstraintDegree::with_cycles(
+            3,
+            vec![HASH_CYCLE_LENGTH, MERKLE_CYCLE_LENGTH]
+        );
         TRACE_WIDTH - 1
     ]);
 

@@ -13,8 +13,9 @@ use rand_core::{OsRng, RngCore};
 use std::time::Instant;
 use winterfell::crypto::Hasher;
 use winterfell::{
-    math::{fields::f63::BaseElement, log2, FieldElement,},
-    ProofOptions, Prover, StarkProof, Trace, TraceTable, VerifierError,
+    math::{fields::f63::BaseElement, log2, FieldElement},
+    FieldExtension, HashFunction, ProofOptions, Prover, StarkProof, Trace, TraceTable,
+    VerifierError,
 };
 
 pub(crate) mod constants;
@@ -30,6 +31,23 @@ use self::constants::TREE_DEPTH;
 
 #[cfg(test)]
 mod tests;
+
+/// Outputs a new `MerkleExample` with `num_keys` Merkle proofs of membership on random public keys.
+pub fn get_example(num_keys: usize) -> MerkleExample {
+    MerkleExample::new(
+        // TODO: make it customizable
+        ProofOptions::new(
+            42,
+            8,
+            0,
+            HashFunction::Blake3_192,
+            FieldExtension::None,
+            4,
+            256,
+        ),
+        num_keys,
+    )
+}
 
 /// Merkle example
 #[derive(Clone, Debug)]
@@ -78,10 +96,7 @@ impl MerkleExample {
 
         // generate the execution trace
         let now = Instant::now();
-        let trace = prover.build_trace(
-            self.branches.clone(),
-            self.hash_indices.clone()
-        );
+        let trace = prover.build_trace(self.branches.clone(), self.hash_indices.clone());
 
         let trace_length = trace.length();
         debug!(
@@ -90,8 +105,6 @@ impl MerkleExample {
             log2(trace_length),
             now.elapsed().as_millis()
         );
-
-        println!("Length: {}", trace_length);
 
         // generate the proof
         prover.prove(trace).unwrap()
@@ -216,8 +229,18 @@ fn calculate_merkle_proof(
 
     let half_length = tree.len() / 2;
     let branch_node_index = log2(half_length) as usize;
-    let left = calculate_merkle_proof(&tree[..half_length], branches, hash_indices, branch_index << 1);
-    let right = calculate_merkle_proof(&tree[half_length..], branches, hash_indices, (branch_index << 1) + 1);
+    let left = calculate_merkle_proof(
+        &tree[..half_length],
+        branches,
+        hash_indices,
+        branch_index << 1,
+    );
+    let right = calculate_merkle_proof(
+        &tree[half_length..],
+        branches,
+        hash_indices,
+        (branch_index << 1) + 1,
+    );
 
     for (branch, &hash_index) in branches.iter_mut().zip(hash_indices.iter()) {
         let hash_index = hash_index >> branch_node_index;
