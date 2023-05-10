@@ -1,0 +1,68 @@
+[package]
+name = "openvote"
+description = "Implementation of the AIR program for the Topos state-transition"
+authors = ["Toposware Developers <dev@toposware.com>", "catp3rson <ngan.nguyen1907001@gmail.com>"]
+homepage = "https://github.com/catp3rson/E-Voting-System"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/catp3rson/E-Voting-System"
+version = "0.1.0"
+edition = "2018"
+readme = "README.md"
+categories = ["cryptography", "no-std"]
+keywords = ["cryptography", "crypto", "stark", "zero-knowledge"]
+
+[dependencies]
+unroll = "0.1.5"
+bitvec = { path = "../bitvec-0.22.3", default-features = false }
+getrandom = { version = "0.2", default-features = false, features = ["js"] }
+hex = { version = "0.4", default-features = false, features = ["alloc"] }
+log = { version = "0.4", default-features = false }
+rand_core = { version = "0.6", default-features = false, features = ["getrandom"] }
+winterfell = { path = "../winterfell-mod/winterfell", default-features = false }
+
+
+[features]
+concurrent = ["winterfell/concurrent", "std"]
+default = ["std"]
+std = ["winterfell/std"]
+
+[dev-dependencies]
+criterion = "0.3"
+env_logger = "0.9"
+gumdrop = "0.8"
+
+[profile.release]
+codegen-units = 1
+lto = true
+
+[profile.bench]
+codegen-units = 1
+lto = true
+
+[[bench]]
+name = "merkle"
+harness = false
+
+[[bench]]
+name = "merkle_proof"
+harness = false
+
+[[bench]]
+name = "range"
+harness = false
+
+[[bench]]
+name = "rescue"
+harness = false
+
+[[bench]]
+name = "schnorr"
+harness = false
+
+[[bench]]
+name = "cds"
+harness = false
+
+[[bench]]
+name = "state_transition"
+harness = false
