@@ -1,10 +1,10 @@
 use crate::{cds::hash_message_bytes, utils::ecc};
 
-use super::{air::CDSAir, constants::*};
+use super::{air::CDSAir, constants::*, diff_registers};
 use bitvec::{order::Lsb0, view::AsBits};
 use winterfell::{
     math::{curves::curve_f63::Scalar, fields::f63::BaseElement, FieldElement},
-    ProofOptions, Prover, TraceTable,
+    ProofOptions, Prover, TraceTable, Trace,
 };
 
 #[cfg(feature = "concurrent")]
@@ -133,24 +133,70 @@ impl Prover for CDSProver {
     type Trace = TraceTable<BaseElement>;
 
     // This method should use the existing trace to extract the public inputs to be given
-    // to the verifier. As the CDS sub-AIR program is not intended to be used as a
-    // standalone AIR program, we bypass this here by storing directly the messages and signatures
-    // in the CDSProver struct. This is not used in the complete state transition Air program
-    // where only initial and final Merkle roots are provided to the verifier.
-    fn get_pub_inputs(&self, _trace: &Self::Trace) -> PublicInputs {
+    // to the verifier.
+    fn get_pub_inputs(&self, trace: &Self::Trace) -> PublicInputs {
         let mut proofs = Vec::with_capacity(self.public_keys.len());
+        let mut outputs = Vec::with_capacity(self.public_keys.len());
+
         for i in 0..self.public_keys.len() {
+            // truncate CDS proof
             let mut proof = [BaseElement::ZERO; AFFINE_POINT_WIDTH * 6];
             proof[..AFFINE_POINT_WIDTH].copy_from_slice(&self.public_keys[i]);
             proof[AFFINE_POINT_WIDTH..AFFINE_POINT_WIDTH * 2]
                 .copy_from_slice(&self.encrypted_votes[i]);
             proof[AFFINE_POINT_WIDTH * 2..].copy_from_slice(&self.proof_points[i]);
             proofs.push(proof);
+
+            // get the output of CDS proof verifications from execution trace
+            let mut output = [BaseElement::ZERO; AFFINE_POINT_WIDTH * 5];
+            let mut row = [BaseElement::ZERO; TRACE_WIDTH];
+
+            trace.read_row_into(SCALAR_MUL_LENGTH + CDS_CYCLE_LENGTH * i + 1, &mut row);
+
+            // validate a1
+            output[..AFFINE_POINT_WIDTH]
+                .copy_from_slice(&diff_registers::<AFFINE_POINT_WIDTH>(
+                    &row[PROJECTIVE_POINT_WIDTH + 1..PROJECTIVE_POINT_WIDTH + AFFINE_POINT_WIDTH + 1],
+                    &self.proof_points[i][..AFFINE_POINT_WIDTH]
+                ));
+            
+            // validate b1
+            output[AFFINE_POINT_WIDTH..AFFINE_POINT_WIDTH * 2]
+                .copy_from_slice(&diff_registers::<AFFINE_POINT_WIDTH>(
+                    &row[2 * PROJECTIVE_POINT_WIDTH + 1..2 * PROJECTIVE_POINT_WIDTH + AFFINE_POINT_WIDTH + 1],
+                    &self.proof_points[i][AFFINE_POINT_WIDTH..AFFINE_POINT_WIDTH * 2]
+                ));
+
+            trace.read_row_into(SCALAR_MUL_LENGTH + NROWS_PER_PHASE + CDS_CYCLE_LENGTH * i + 1, &mut row);
+
+            // validate a2
+            output[AFFINE_POINT_WIDTH * 2..AFFINE_POINT_WIDTH * 3]
+                .copy_from_slice(&diff_registers::<AFFINE_POINT_WIDTH>(
+                    &row[PROJECTIVE_POINT_WIDTH + 1..PROJECTIVE_POINT_WIDTH + AFFINE_POINT_WIDTH + 1],
+                    &self.proof_points[i][AFFINE_POINT_WIDTH * 2..AFFINE_POINT_WIDTH * 3]
+                ));
+
+            // validate b2
+            output[AFFINE_POINT_WIDTH * 3..AFFINE_POINT_WIDTH * 4]
+                .copy_from_slice(&diff_registers::<AFFINE_POINT_WIDTH>(
+                    &row[2 * PROJECTIVE_POINT_WIDTH + 1..2 * PROJECTIVE_POINT_WIDTH + AFFINE_POINT_WIDTH + 1],
+                    &self.proof_points[i][AFFINE_POINT_WIDTH * 3..AFFINE_POINT_WIDTH * 4]
+                ));
+
+            // validate x and z coordinates of (c - d1 - d2) * pk
+            output[AFFINE_POINT_WIDTH * 4..AFFINE_POINT_WIDTH * 4 + POINT_COORDINATE_WIDTH]
+                .copy_from_slice(&row[..POINT_COORDINATE_WIDTH]);
+            output[AFFINE_POINT_WIDTH * 4 + POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH * 5]
+                .copy_from_slice(&row[AFFINE_POINT_WIDTH..PROJECTIVE_POINT_WIDTH]);
+            
+            outputs.push(output);
         }
-        PublicInputs { proofs }
+        
+        PublicInputs { proofs, outputs }
     }
 
     fn options(&self) -> &ProofOptions {
         &self.options
     }
 }
+

@@ -240,6 +240,28 @@ pub(crate) fn enforce_point_addition_mixed_bit<E: FieldElement + From<BaseElemen
     }
 }
 
+/// Enforces constraints for performing a mixed point addition
+/// between current and point without checking adding bit
+pub(crate) fn enforce_point_addition_mixed_unchecked<E: FieldElement + From<BaseElement>>(
+    result: &mut [E],
+    current: &[E],
+    next: &[E],
+    point: &[E],
+    flag: E,
+) {
+    let mut step1 = [E::ZERO; PROJECTIVE_POINT_WIDTH];
+    step1.copy_from_slice(&current[0..PROJECTIVE_POINT_WIDTH]);
+
+    let mut step2 = [E::ZERO; PROJECTIVE_POINT_WIDTH];
+    step2.copy_from_slice(&next[0..PROJECTIVE_POINT_WIDTH]);
+
+    compute_add_mixed(&mut step1, point);
+
+    for i in 0..PROJECTIVE_POINT_WIDTH {
+        result.agg_constraint(i, flag, are_equal(step1[i], step2[i]));
+    }
+}
+
 /// When flag = 1, enforces constraints for performing a point addition
 /// between current and point in projective coordinates.
 pub(crate) fn enforce_point_addition<E: FieldElement + From<BaseElement>>(
@@ -336,6 +358,44 @@ pub(crate) fn enforce_point_addition_reduce_affine<E: FieldElement + From<BaseEl
             are_equal(y_z[i], step1[i + POINT_COORDINATE_WIDTH]),
         );
     }
+    for i in AFFINE_POINT_WIDTH..PROJECTIVE_POINT_WIDTH {
+        result.agg_constraint(i, flag, are_equal(step2[i], step1[i]));
+    }
+}
+
+pub(crate) fn enforce_point_addition_mixed_reduce_affine<E: FieldElement + From<BaseElement>>(
+    result: &mut [E],
+    current: &[E],
+    next: &[E],
+    point: &[E],
+    flag: E,
+) {
+    let mut step1 = [E::ZERO; PROJECTIVE_POINT_WIDTH];
+    step1.copy_from_slice(&current[0..PROJECTIVE_POINT_WIDTH]);
+
+    let mut step2 = [E::ZERO; PROJECTIVE_POINT_WIDTH];
+    step2.copy_from_slice(&next[0..PROJECTIVE_POINT_WIDTH]);
+
+    compute_add_mixed(&mut step1, point);
+
+    let x_z = mul_fp6(
+        &step2[0..POINT_COORDINATE_WIDTH],
+        &step1[AFFINE_POINT_WIDTH..PROJECTIVE_POINT_WIDTH],
+    );
+    let y_z = mul_fp6(
+        &step2[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH],
+        &step1[AFFINE_POINT_WIDTH..PROJECTIVE_POINT_WIDTH],
+    );
+
+    for i in 0..POINT_COORDINATE_WIDTH {
+        result.agg_constraint(i, flag, are_equal(x_z[i], step1[i]));
+        result.agg_constraint(
+            i + POINT_COORDINATE_WIDTH,
+            flag,
+            are_equal(y_z[i], step1[i + POINT_COORDINATE_WIDTH]),
+        );
+    }
+
     for i in AFFINE_POINT_WIDTH..PROJECTIVE_POINT_WIDTH {
         result.agg_constraint(i, flag, are_equal(step2[i], step1[i]));
     }

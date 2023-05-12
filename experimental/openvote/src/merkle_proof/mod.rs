@@ -35,7 +35,6 @@ mod tests;
 /// Outputs a new `MerkleExample` with `num_keys` Merkle proofs of membership on random public keys.
 pub fn get_example(num_keys: usize) -> MerkleExample {
     MerkleExample::new(
-        // TODO: make it customizable
         ProofOptions::new(
             42,
             8,

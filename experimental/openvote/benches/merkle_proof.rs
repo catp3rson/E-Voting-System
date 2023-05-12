@@ -6,11 +6,11 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use certificate_stark::merkle_proof::get_example;
+use openvote::merkle_proof::get_example;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::time::Duration;
 
-const SIZES: [usize; 5] = [1, 4, 16, 64, 256];
+const SIZES: [usize; 5] = [8, 16, 32, 64, 128];
 
 fn merkle_proof_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("merkle_proof");

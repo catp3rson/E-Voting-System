@@ -17,8 +17,8 @@ use winterfell::{
     TransitionConstraintDegree, VerifierError,
 };
 
-use certificate_stark::utils::rescue::{HASH_CYCLE_LENGTH, NUM_HASH_ROUNDS, RATE_WIDTH};
-use certificate_stark::utils::{are_equal, is_zero, not, rescue, EvaluationResult};
+use openvote::utils::rescue::{HASH_CYCLE_LENGTH, NUM_HASH_ROUNDS, RATE_WIDTH};
+use openvote::utils::{are_equal, is_zero, not, rescue, EvaluationResult};
 
 const SIZES: [usize; 4] = [128, 256, 512, 1024];
 
@@ -371,7 +371,7 @@ fn rescue_bench(c: &mut Criterion) {
         42,
         4,
         0,
-        HashFunction::Blake3_256,
+        HashFunction::Blake3_192,
         FieldExtension::None,
         4,
         256,

@@ -42,7 +42,7 @@ fn build_options(extension: u8) -> ProofOptions {
         42,
         8,
         0,
-        HashFunction::Blake3_256,
+        HashFunction::Blake3_192,
         match extension {
             2 => FieldExtension::Quadratic,
             3 => FieldExtension::Cubic,

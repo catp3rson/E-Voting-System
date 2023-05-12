@@ -6,6 +6,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use core::result;
+use std::process::Output;
+
 use super::super::utils::periodic_columns::stitch;
 use super::constants::*;
 use super::rescue::{RATE_WIDTH as HASH_RATE_WIDTH, STATE_WIDTH as HASH_STATE_WIDTH};
@@ -30,6 +33,7 @@ use alloc::vec::Vec;
 pub struct PublicInputs {
     // [pk, ev, a1, b1, a2, b2]
     pub proofs: Vec<[BaseElement; AFFINE_POINT_WIDTH * 6]>,
+    pub outputs: Vec<[BaseElement; AFFINE_POINT_WIDTH * 5]>,
 }
 
 impl Serializable for PublicInputs {
@@ -43,6 +47,7 @@ impl Serializable for PublicInputs {
 pub struct CDSAir {
     context: AirContext<BaseElement>,
     proofs: Vec<[BaseElement; AFFINE_POINT_WIDTH * 6]>,
+    outputs: Vec<[BaseElement; AFFINE_POINT_WIDTH * 5]>,
 }
 
 impl Air for CDSAir {
@@ -57,6 +62,7 @@ impl Air for CDSAir {
         CDSAir {
             context: AirContext::new(trace_info, degrees, options),
             proofs: pub_inputs.proofs,
+            outputs: pub_inputs.outputs,
         }
     }
 
@@ -132,7 +138,11 @@ impl Air for CDSAir {
     }
 
     fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {
-        let (proof_points_a, proof_points_b) = transpose_proof_points(&self.proofs);
+        let (
+            proof_points_a,
+            proof_points_b,
+            c_diff_value
+        ) = transpose_proof_points(&self.proofs, &self.outputs);
 
         // Assert starting and ending values
         let mut assertions = vec![];
@@ -234,19 +244,19 @@ impl Air for CDSAir {
         }
 
         // END OF CYCLE
-        // (c - d1 - d2) * pk = (0, Y, 0)
+        // (c - d1 - d2) * pk
         for i in 0..POINT_COORDINATE_WIDTH {
-            assertions.push(Assertion::periodic(
+            assertions.push(Assertion::sequence(
                 i,
                 CDS_CYCLE_LENGTH - 1,
                 CDS_CYCLE_LENGTH,
-                BaseElement::ZERO,
+                c_diff_value[i].to_owned(),
             ));
-            assertions.push(Assertion::periodic(
+            assertions.push(Assertion::sequence(
                 i + AFFINE_POINT_WIDTH,
                 CDS_CYCLE_LENGTH - 1,
                 CDS_CYCLE_LENGTH,
-                BaseElement::ZERO,
+                c_diff_value[i + POINT_COORDINATE_WIDTH].to_owned(),
             ));
         }
 
@@ -677,7 +687,7 @@ pub(crate) fn evaluate_constraints<E: FieldElement + From<BaseElement>>(
         final_point_addition_flag,
     );
 
-    // Ensure that the accumulated value from the binary decomposition of h
+    // Ensure that the accumulated value from the binary decomposition of c
     // matches the output of Rescue iterated hashes
     for i in 0..4 {
         result.agg_constraint(
@@ -781,24 +791,30 @@ pub(crate) fn transition_constraint_degrees() -> Vec<TransitionConstraintDegree>
 #[unroll_for_loops]
 fn transpose_proof_points(
     proofs: &Vec<[BaseElement; AFFINE_POINT_WIDTH * 6]>,
-) -> (Vec<Vec<BaseElement>>, Vec<Vec<BaseElement>>) {
+    outputs: &Vec<[BaseElement; AFFINE_POINT_WIDTH * 5]>,
+) -> (Vec<Vec<BaseElement>>, Vec<Vec<BaseElement>>, Vec<Vec<BaseElement>>) {
     let n = proofs.len() * 2;
     let mut result1 = vec![Vec::with_capacity(n); AFFINE_POINT_WIDTH];
     let mut result2 = vec![Vec::with_capacity(n); AFFINE_POINT_WIDTH];
+    let mut result3 = vec![Vec::with_capacity(n / 2); AFFINE_POINT_WIDTH];
 
-    for proof in proofs {
+    for (proof, output) in proofs.iter().zip(outputs.iter()) {
         let proof_points = &proof[AFFINE_POINT_WIDTH * 2..];
         // a1, a2
         for i in 0..AFFINE_POINT_WIDTH {
-            result1[i].push(proof_points[i]);
-            result1[i].push(proof_points[i + 2 * AFFINE_POINT_WIDTH])
+            result1[i].push(proof_points[i] + output[i]);
+            result1[i].push(proof_points[i + 2 * AFFINE_POINT_WIDTH] + output[i + 2 * AFFINE_POINT_WIDTH])
         }
         // b1, b2
         for i in 0..AFFINE_POINT_WIDTH {
-            result2[i].push(proof_points[i + AFFINE_POINT_WIDTH]);
-            result2[i].push(proof_points[i + 3 * AFFINE_POINT_WIDTH]);
+            result2[i].push(proof_points[i + AFFINE_POINT_WIDTH] + output[i + AFFINE_POINT_WIDTH]);
+            result2[i].push(proof_points[i + 3 * AFFINE_POINT_WIDTH] + output[i + 3 * AFFINE_POINT_WIDTH]);
+        }
+        // x and z coordinates of (c - d1 - d2) * pk
+        for i in 0..AFFINE_POINT_WIDTH {
+            result3[i].push(output[i + 4 * AFFINE_POINT_WIDTH]);
         }
     }
 
-    (result1, result2)
+    (result1, result2, result3)
 }

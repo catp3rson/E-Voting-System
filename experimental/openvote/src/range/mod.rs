@@ -44,7 +44,7 @@ pub fn get_example(number: BaseElement) -> RangeProofExample {
             42,
             8,
             0,
-            HashFunction::Blake3_256,
+            HashFunction::Blake3_192,
             FieldExtension::None,
             4,
             256,

@@ -55,10 +55,9 @@ mod tests;
 /// Outputs a new `SchnorrExample` with `num_signatures` signatures on random messages.
 pub fn get_example(num_proofs: usize) -> CDSExample {
     CDSExample::new(
-        // TODO: make it customizable
         ProofOptions::new(
             42,
-            16,
+            8,
             0,
             HashFunction::Blake3_192,
             FieldExtension::None,
@@ -427,4 +426,17 @@ fn hash_message_bytes(message: &[BaseElement; HASH_MSG_LENGTH]) -> [u8; 32] {
         h_bytes[8 * i..8 * i + 8].copy_from_slice(&h_word.to_bytes());
     }
     h_bytes
+}
+
+#[unroll_for_loops]
+#[inline]
+fn diff_registers<const NREGS: usize>(
+    a: &[BaseElement],
+    b: &[BaseElement],
+) -> [BaseElement; NREGS] {
+    let mut result = [BaseElement::ZERO; NREGS];
+    for i in 0..NREGS {
+        result[i] = a[i] - b[i];
+    }
+    result
 }

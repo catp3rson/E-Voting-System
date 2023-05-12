@@ -1,6 +1,6 @@
 [package]
 name = "openvote"
-description = "Implementation of the AIR program for the Topos state-transition"
+description = "Implementation of the AIR program for Open Vote Network"
 authors = ["Toposware Developers <dev@toposware.com>", "catp3rson <ngan.nguyen1907001@gmail.com>"]
 homepage = "https://github.com/catp3rson/E-Voting-System"
 license = "MIT OR Apache-2.0"
@@ -40,19 +40,7 @@ codegen-units = 1
 lto = true
 
 [[bench]]
-name = "merkle"
-harness = false
-
-[[bench]]
 name = "merkle_proof"
-harness = false
-
-[[bench]]
-name = "range"
-harness = false
-
-[[bench]]
-name = "rescue"
 harness = false
 
 [[bench]]
@@ -61,8 +49,4 @@ harness = false
 
 [[bench]]
 name = "cds"
-harness = false
-
-[[bench]]
-name = "state_transition"
 harness = false

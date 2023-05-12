@@ -6,30 +6,34 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use certificate_stark::merkle::update::get_example;
+use openvote::tally::get_example;
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::time::Duration;
 
-const SIZES: [usize; 3] = [1, 16, 128];
+const SIZES: [usize; 5] = [8, 16, 32, 64, 128];
 
-fn merkle_bench(c: &mut Criterion) {
-    let mut group = c.benchmark_group("merkle");
+fn tally_bench(c: &mut Criterion) {
+    let mut group = c.benchmark_group("tally");
     group.sample_size(10);
-    group.measurement_time(Duration::from_secs(100));
+    group.measurement_time(Duration::from_secs(400));
 
     for &size in SIZES.iter() {
-        let merkle = get_example(size);
+        let tally = get_example(size);
+        
         group.bench_function(BenchmarkId::new("prove", size), |bench| {
-            bench.iter(|| merkle.prove());
+            bench.iter(|| tally.prove());
         });
-        let proof = merkle.prove();
+
+        let proof = tally.prove();
+
+        println!("Proof size for tally/prove/{}: {} bytes", size, proof.to_bytes().len());
 
         group.bench_function(BenchmarkId::new("verify", size), |bench| {
-            bench.iter(|| merkle.verify(proof.clone()));
+            bench.iter(|| tally.verify(proof.clone()));
         });
     }
     group.finish();
 }
 
-criterion_group!(merkle_group, merkle_bench);
-criterion_main!(merkle_group);
+criterion_group!(tally_group, tally_bench);
+criterion_main!(tally_group);
