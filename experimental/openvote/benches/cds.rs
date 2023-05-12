@@ -6,7 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use openvote::cds::get_example;
+use openvote::cds::{get_example, naive_verify_cds_proofs};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::time::Duration;
 
@@ -27,6 +27,12 @@ fn cds_bench(c: &mut Criterion) {
         let (pub_inputs, proof) = cds.prove();
 
         println!("Proof size for cds/prove/{}: {} bytes", size, proof.to_bytes().len());
+
+        // group.bench_function(BenchmarkId::new("naive", size), |bench| {
+        //     bench.iter(|| naive_verify_cds_proofs(
+        //         pub_inputs., blinding_keys, encrypted_votes, proof_scalars, proof_points
+        //     ));
+        // });
 
         group.bench_function(BenchmarkId::new("verify", size), |bench| {
             bench.iter(|| cds.verify(proof.clone(), pub_inputs.clone()));

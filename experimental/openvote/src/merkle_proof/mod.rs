@@ -64,9 +64,22 @@ impl MerkleExample {
     pub fn new(options: ProofOptions, num_keys: usize) -> MerkleExample {
         let (tree_root, public_keys, branches, hash_indices) = build_merkle_tree(num_keys);
 
-        assert!(
-            verify_merkle_proofs(&tree_root, &public_keys, &branches, &hash_indices),
-            "Invalid Merkle proof."
+        // verify the Merkle proofs
+        #[cfg(feature = "std")]
+        let now = Instant::now();
+
+        assert!(naive_verify_merkle_proofs(
+            &tree_root,
+            &public_keys,
+            &branches,
+            &hash_indices,
+        ));
+
+        #[cfg(feature = "std")]
+        debug!(
+            "Verified {} Merkle proofs in {} ms",
+            public_keys.len(),
+            now.elapsed().as_millis(),
         );
 
         MerkleExample {
@@ -184,7 +197,8 @@ fn build_merkle_tree(
     (tree_root, public_keys, branches, hash_indices)
 }
 
-fn verify_merkle_proofs(
+/// Naively verify Merkle proofs of membership
+fn naive_verify_merkle_proofs(
     tree_root: &[BaseElement; RATE_WIDTH],
     public_keys: &Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
     branches: &Vec<[BaseElement; TREE_DEPTH * RATE_WIDTH]>,

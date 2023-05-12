@@ -96,9 +96,7 @@ impl TallyExample {
         #[cfg(feature = "std")]
         let now = Instant::now();
 
-        for _ in 0..num_votes {
-            assert!(verify_tally_result(&encrypted_votes, tally_result));
-        }
+        assert!(naive_verify_tally_result(&encrypted_votes, tally_result));
 
         #[cfg(feature = "std")]
         debug!(
@@ -184,8 +182,8 @@ impl TallyExample {
 // ================================================================================================
 
 #[inline]
-/// Verify the tally result
-pub(crate) fn verify_tally_result(
+/// Naively verify the tally result
+pub(crate) fn naive_verify_tally_result(
     encrypted_votes: &Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
     tally_result: u64,
 ) -> bool {

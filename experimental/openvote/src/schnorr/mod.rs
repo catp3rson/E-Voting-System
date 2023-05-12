@@ -121,9 +121,7 @@ impl SchnorrExample {
         #[cfg(feature = "std")]
         let now = Instant::now();
 
-        for i in 0..num_signatures {
-            assert!(verify_signature(messages[i], signatures[i]));
-        }
+        assert!(naive_verify_signatures(&messages, &signatures));
 
         #[cfg(feature = "std")]
         debug!(
@@ -217,32 +215,38 @@ pub(crate) fn sign(
     (r_point.get_x(), s)
 }
 
-/// Verifies a Schnorr signature
-pub(crate) fn verify_signature(
-    message: [BaseElement; AFFINE_POINT_WIDTH * 2 + 4],
-    signature: ([BaseElement; POINT_COORDINATE_WIDTH], Scalar),
+/// Naively verify Schnorr signatures
+pub fn naive_verify_signatures(
+    messages: &Vec<[BaseElement; AFFINE_POINT_WIDTH * 2 + 4]>,
+    signatures: &Vec<([BaseElement; POINT_COORDINATE_WIDTH], Scalar)>,
 ) -> bool {
-    let s_point = AffinePoint::generator() * signature.1;
-    let mut pkey_coords = [BaseElement::ZERO; AFFINE_POINT_WIDTH];
-    pkey_coords[..AFFINE_POINT_WIDTH].clone_from_slice(&message[..AFFINE_POINT_WIDTH]);
-    let pkey = AffinePoint::from_raw_coordinates(pkey_coords);
-    assert!(pkey.is_on_curve());
+    for (&message, signature) in messages.iter().zip(signatures.iter()) {
+        let s_point = AffinePoint::generator() * signature.1;
+        let mut pkey_coords = [BaseElement::ZERO; AFFINE_POINT_WIDTH];
+        pkey_coords[..AFFINE_POINT_WIDTH].clone_from_slice(&message[..AFFINE_POINT_WIDTH]);
+        let pkey = AffinePoint::from_raw_coordinates(pkey_coords);
+        assert!(pkey.is_on_curve());
 
-    let h = hash_message(signature.0, message);
-    let mut h_bytes = [0u8; 32];
-    for (i, h_word) in h.iter().enumerate().take(4) {
-        h_bytes[8 * i..8 * i + 8].copy_from_slice(&h_word.to_bytes());
+        let h = hash_message(signature.0, message);
+        let mut h_bytes = [0u8; 32];
+        for (i, h_word) in h.iter().enumerate().take(4) {
+            h_bytes[8 * i..8 * i + 8].copy_from_slice(&h_word.to_bytes());
+        }
+        let h_bits = h_bytes.as_bits::<Lsb0>();
+
+        // Reconstruct a scalar from the binary sequence of h
+        let h_scalar = Scalar::from_bits(h_bits);
+
+        let h_pubkey_point = pkey * h_scalar;
+
+        let r_point = AffinePoint::from(s_point + h_pubkey_point);
+
+        if r_point.get_x() != signature.0 {
+            return false;
+        }
     }
-    let h_bits = h_bytes.as_bits::<Lsb0>();
 
-    // Reconstruct a scalar from the binary sequence of h
-    let h_scalar = Scalar::from_bits(h_bits);
-
-    let h_pubkey_point = pkey * h_scalar;
-
-    let r_point = AffinePoint::from(s_point + h_pubkey_point);
-
-    r_point.get_x() == signature.0
+    true
 }
 
 fn hash_message(

@@ -133,9 +133,8 @@ impl CDSExample {
         #[cfg(feature = "std")]
         let now = Instant::now();
 
-        assert!(verify_cds_proofs(
+        assert!(naive_verify_cds_proofs(
             &public_keys,
-            &blinding_keys,
             &encrypted_votes,
             &proof_scalars,
             &proof_points
@@ -323,14 +322,28 @@ pub(crate) fn encrypt_votes_and_compute_proofs(
     (encrypted_votes, proof_scalars, proof_points)
 }
 
-/// Verifies a CDS proof
-pub(crate) fn verify_cds_proofs(
+/// Naively varify CDS proofs
+pub(crate) fn naive_verify_cds_proofs(
     public_keys: &[ProjectivePoint],
-    blinding_keys: &[ProjectivePoint],
     encrypted_votes: &[ProjectivePoint],
     proof_scalars: &[[Scalar; PROOF_NUM_SCALARS]],
     proof_points: &[[ProjectivePoint; PROOF_NUM_POINTS]],
 ) -> bool {
+    // compute blinding keys
+    let num_proofs = public_keys.len();
+    let mut blinding_keys = Vec::with_capacity(num_proofs);
+    let mut blinding_key = ProjectivePoint::identity();
+    for i in 1..num_proofs {
+        blinding_key -= public_keys[i];
+    }
+    for i in 0..num_proofs {
+        blinding_keys.push(blinding_key);
+        if i + 1 < num_proofs {
+            blinding_key += public_keys[i];
+            blinding_key += public_keys[i + 1];
+        }
+    }
+
     for (i, (scalars, points)) in proof_scalars.iter().zip(proof_points.iter()).enumerate() {
         let d1 = scalars[0];
         let d2 = scalars[1];
