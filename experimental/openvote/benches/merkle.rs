@@ -29,7 +29,7 @@ fn merkle_bench(c: &mut Criterion) {
         group.bench_function(BenchmarkId::new("naive", size), |bench| {
             bench.iter(|| naive_verify_merkle_proofs(
                 &merkle.tree_root,
-                &merkle.public_keys,
+                &merkle.voting_keys,
                 &merkle.branches,
                 &merkle.hash_indices));
         });

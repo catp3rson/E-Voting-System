@@ -82,7 +82,7 @@ impl Air for SchnorrAir {
         let scalar_mult_flag = periodic_values[1];
         let doubling_flag = periodic_values[2];
         let hash_digest_register_flag = &periodic_values[3..7];
-        let pkey_point = &periodic_values[7..AFFINE_POINT_WIDTH + 7];
+        let vkey_point = &periodic_values[7..AFFINE_POINT_WIDTH + 7];
         let hash_flag = periodic_values[AFFINE_POINT_WIDTH + 7];
         let hash_internal_inputs =
             &periodic_values[AFFINE_POINT_WIDTH + 8..AFFINE_POINT_WIDTH + 15];
@@ -101,7 +101,7 @@ impl Air for SchnorrAir {
             doubling_flag,
             addition_flag,
             hash_digest_register_flag,
-            pkey_point,
+            vkey_point,
             final_point_addition_flag,
             hash_flag,
             copy_hash_flag,
@@ -391,7 +391,7 @@ pub(crate) fn evaluate_constraints<E: FieldElement + From<BaseElement>>(
     doubling_flag: E,
     addition_flag: E,
     hash_digest_register_flag: &[E],
-    pkey_point: &[E],
+    vkey_point: &[E],
     final_point_addition_flag: E,
     hash_flag: E,
     copy_hash_flag: E,
@@ -401,7 +401,7 @@ pub(crate) fn evaluate_constraints<E: FieldElement + From<BaseElement>>(
     let generator_point: Vec<E> = GENERATOR.iter().map(|&coord| coord.into()).collect();
 
     // Point to be used in the double-and-add operations of registers [PROJECTIVE_POINT_WIDTH + 1..PROJECTIVE_POINT_WIDTH * 2 + 1] (h.P)
-    let pkey_point: Vec<E> = pkey_point.to_vec();
+    let vkey_point: Vec<E> = vkey_point.to_vec();
 
     // When scalar_mult_flag = 1, constraints for a double-and-add
     // step are enforced on the dedicated registers for S and h.P,
@@ -435,7 +435,7 @@ pub(crate) fn evaluate_constraints<E: FieldElement + From<BaseElement>>(
         &mut result[PROJECTIVE_POINT_WIDTH + 1..2 * PROJECTIVE_POINT_WIDTH + 2],
         &current[PROJECTIVE_POINT_WIDTH + 1..2 * PROJECTIVE_POINT_WIDTH + 2],
         &next[PROJECTIVE_POINT_WIDTH + 1..2 * PROJECTIVE_POINT_WIDTH + 2],
-        &pkey_point,
+        &vkey_point,
         addition_flag,
     );
 

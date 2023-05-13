@@ -91,11 +91,11 @@ impl SchnorrExample {
 
         for _ in 0..num_signatures {
             let skey = Scalar::random(&mut rng);
-            let pkey = AffinePoint::from(AffinePoint::generator() * skey);
+            let vkey = AffinePoint::from(AffinePoint::generator() * skey);
 
             let mut message = [BaseElement::ZERO; AFFINE_POINT_WIDTH * 2 + 4];
-            message[0..POINT_COORDINATE_WIDTH].copy_from_slice(&pkey.get_x());
-            message[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH].copy_from_slice(&pkey.get_y());
+            message[0..POINT_COORDINATE_WIDTH].copy_from_slice(&vkey.get_x());
+            message[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH].copy_from_slice(&vkey.get_y());
             for msg in message.iter_mut().skip(AFFINE_POINT_WIDTH) {
                 *msg = BaseElement::random(&mut rng);
             }
@@ -224,10 +224,10 @@ pub fn naive_verify_signatures(
 ) -> bool {
     for (&message, signature) in messages.iter().zip(signatures.iter()) {
         let s_point = AffinePoint::generator() * signature.1;
-        let mut pkey_coords = [BaseElement::ZERO; AFFINE_POINT_WIDTH];
-        pkey_coords[..AFFINE_POINT_WIDTH].clone_from_slice(&message[..AFFINE_POINT_WIDTH]);
-        let pkey = AffinePoint::from_raw_coordinates(pkey_coords);
-        assert!(pkey.is_on_curve());
+        let mut vkey_coords = [BaseElement::ZERO; AFFINE_POINT_WIDTH];
+        vkey_coords[..AFFINE_POINT_WIDTH].clone_from_slice(&message[..AFFINE_POINT_WIDTH]);
+        let vkey = AffinePoint::from_raw_coordinates(vkey_coords);
+        assert!(vkey.is_on_curve());
 
         let h = hash_message(signature.0, message);
         let mut h_bytes = [0u8; 32];
@@ -239,7 +239,7 @@ pub fn naive_verify_signatures(
         // Reconstruct a scalar from the binary sequence of h
         let h_scalar = Scalar::from_bits(h_bits);
 
-        let h_pubkey_point = pkey * h_scalar;
+        let h_pubkey_point = vkey * h_scalar;
 
         let r_point = AffinePoint::from(s_point + h_pubkey_point);
 

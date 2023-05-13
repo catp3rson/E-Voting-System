@@ -26,19 +26,19 @@ use super::{
 pub struct MerkleProver {
     options: ProofOptions,
     tree_root: [BaseElement; RATE_WIDTH],
-    public_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
 }
 
 impl MerkleProver {
     pub fn new(
         options: ProofOptions,
         tree_root: [BaseElement; RATE_WIDTH],
-        public_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+        voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
     ) -> Self {
         Self {
             options,
             tree_root,
-            public_keys,
+            voting_keys,
         }
     }
 
@@ -63,15 +63,15 @@ impl MerkleProver {
                 let i = merkle_trace.index();
 
                 let hash_index = hash_indices[i] << 1;
-                let public_key = self.public_keys[i];
+                let voting_key = self.voting_keys[i];
                 let mut hash_message = [BaseElement::ZERO; (TREE_DEPTH + 1) * RATE_WIDTH];
                 hash_message[..POINT_COORDINATE_WIDTH]
-                    .copy_from_slice(&public_key[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH]);
+                    .copy_from_slice(&voting_key[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH]);
                 hash_message[RATE_WIDTH..].copy_from_slice(&branches[i]);
 
                 merkle_trace.fill(
                     |state| {
-                        init_merkle_verification_state(&public_key, state);
+                        init_merkle_verification_state(&voting_key, state);
                     },
                     |step, state| {
                         update_merkle_verification_state(step, &hash_message, hash_index, state);
@@ -91,7 +91,7 @@ impl Prover for MerkleProver {
     fn get_pub_inputs(&self, _trace: &Self::Trace) -> PublicInputs {
         PublicInputs {
             tree_root: self.tree_root,
-            public_keys: self.public_keys.clone(),
+            voting_keys: self.voting_keys.clone(),
         }
     }
 

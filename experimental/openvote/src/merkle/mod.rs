@@ -58,7 +58,7 @@ pub struct MerkleExample {
     /// Root of Merkle tree
     pub tree_root: [BaseElement; RATE_WIDTH],
     /// List of public keys of which memberships need to be proved
-    pub public_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    pub voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
     /// Siblings on the path from public key's leaf to root
     pub branches: Vec<[BaseElement; TREE_DEPTH * RATE_WIDTH]>,
     /// Hash index to determine the path
@@ -73,7 +73,7 @@ impl MerkleExample {
         num_keys: usize,
     ) -> MerkleExample
     {
-        let (tree_root, public_keys, branches, hash_indices) = build_merkle_tree(num_keys);
+        let (tree_root, voting_keys, branches, hash_indices) = build_merkle_tree(num_keys);
 
         // verify the Merkle proofs
         #[cfg(feature = "std")]
@@ -81,7 +81,7 @@ impl MerkleExample {
 
         assert!(naive_verify_merkle_proofs(
             &tree_root,
-            &public_keys,
+            &voting_keys,
             &branches,
             &hash_indices,
         ));
@@ -89,14 +89,14 @@ impl MerkleExample {
         #[cfg(feature = "std")]
         debug!(
             "Verified {} Merkle proofs in {} ms",
-            public_keys.len(),
+            voting_keys.len(),
             now.elapsed().as_millis(),
         );
 
         MerkleExample {
             options,
             tree_root,
-            public_keys,
+            voting_keys,
             branches,
             hash_indices,
         }
@@ -114,7 +114,7 @@ impl MerkleExample {
         let prover = MerkleProver::new(
             self.options.clone(),
             self.tree_root,
-            self.public_keys.clone(),
+            self.voting_keys.clone(),
         );
 
         // generate the execution trace
@@ -133,25 +133,74 @@ impl MerkleExample {
         prover.prove(trace).unwrap()
     }
 
+    /// Generate STARK proof for verification of Merkle proof of membership
+    pub fn prove_with_wrong_branches(&self) -> StarkProof {
+        // generate the execution trace
+        debug!(
+            "Generating proof for proving membership in a Merkle tree of depth {}\n\
+            ---------------------",
+            TREE_DEPTH
+        );
+        // create the prover
+        let prover = MerkleProver::new(
+            self.options.clone(),
+            self.tree_root,
+            self.voting_keys.clone(),
+        );
+
+        // generate the execution trace
+        let mut rng = OsRng;
+        let fault_index = (rng.next_u32() as usize) % self.branches.len();
+        let fault_position = (rng.next_u32() as usize) % self.branches[0].len();
+        let mut wrong_branches = self.branches.clone();
+        wrong_branches[fault_index][fault_position] += BaseElement::ONE;
+        let now = Instant::now();
+        let trace = prover.build_trace(wrong_branches, self.hash_indices.clone());
+
+        let trace_length = trace.length();
+        debug!(
+            "Generated execution trace of {} registers and 2^{} steps in {} ms",
+            trace.width(),
+            log2(trace_length),
+            now.elapsed().as_millis()
+        );
+
+        // generate the proof
+        prover.prove(trace).unwrap()
+    }
+
     /// Verify with correct inputs
     pub fn verify(&self, proof: StarkProof) -> Result<(), VerifierError> {
         let pub_inputs = PublicInputs {
             tree_root: self.tree_root.clone(),
-            public_keys: self.public_keys.clone(),
+            voting_keys: self.voting_keys.clone(),
         };
         winterfell::verify::<MerkleAir>(proof, pub_inputs)
     }
 
     #[cfg(test)]
-    fn verify_with_wrong_inputs(&self, proof: StarkProof) -> Result<(), VerifierError> {
+    fn verify_with_wrong_voting_key(&self, proof: StarkProof) -> Result<(), VerifierError> {
         let mut rng = OsRng;
-        let fault_index = (rng.next_u32() as usize) % self.public_keys.len();
+        let fault_index = (rng.next_u32() as usize) % self.voting_keys.len();
         let fault_position = (rng.next_u32() as usize) % AFFINE_POINT_WIDTH;
         let mut pub_inputs = PublicInputs {
             tree_root: self.tree_root.clone(),
-            public_keys: self.public_keys.clone(),
+            voting_keys: self.voting_keys.clone(),
         };
-        pub_inputs.public_keys[fault_index][fault_position] += BaseElement::ONE;
+        pub_inputs.voting_keys[fault_index][fault_position] += BaseElement::ONE;
+        winterfell::verify::<MerkleAir>(proof, pub_inputs)
+    }
+
+    #[cfg(test)]
+    fn verify_with_wrong_root(&self, proof: StarkProof) -> Result<(), VerifierError> {
+        let mut rng = OsRng;
+        let fault_position = (rng.next_u32() as usize) % RATE_WIDTH;
+        let mut wrong_tree_root = self.tree_root.clone();
+        wrong_tree_root[fault_position] += BaseElement::ONE;
+        let pub_inputs = PublicInputs {
+            tree_root: wrong_tree_root,
+            voting_keys: self.voting_keys.clone(),
+        };
         winterfell::verify::<MerkleAir>(proof, pub_inputs)
     }
 }
@@ -159,7 +208,7 @@ impl MerkleExample {
 // HELPER FUNCTIONS
 // ================================================================================================
 /// Create a random Merkle tree of public keys
-/// and return (tree_root, public_keys, branches, hash_indices)
+/// and return (tree_root, voting_keys, branches, hash_indices)
 fn build_merkle_tree(
     num_keys: usize,
 ) -> (
@@ -172,14 +221,14 @@ fn build_merkle_tree(
     let mut leaves = vec![[BaseElement::ZERO; RATE_WIDTH]; num_leaves];
     let mut rng = OsRng;
 
-    let public_keys = (0..num_keys)
+    let voting_keys = (0..num_keys)
         .into_iter()
         .map(|_| random_array::<AFFINE_POINT_WIDTH>())
         .collect::<Vec<[BaseElement; AFFINE_POINT_WIDTH]>>();
 
-    let key_hashes = public_keys
+    let key_hashes = voting_keys
         .iter()
-        .map(|public_key| hash_public_key(public_key))
+        .map(|voting_key| hash_voting_key(voting_key))
         .collect::<Vec<[BaseElement; RATE_WIDTH]>>();
 
     let mut hash_indices = Vec::with_capacity(num_keys);
@@ -205,21 +254,21 @@ fn build_merkle_tree(
 
     let tree_root = calculate_merkle_proof(&leaves, &mut branches, &hash_indices, 0);
 
-    (tree_root, public_keys, branches, hash_indices)
+    (tree_root, voting_keys, branches, hash_indices)
 }
 
 /// Naively verify Merkle proofs of membership
 pub fn naive_verify_merkle_proofs(
     tree_root: &[BaseElement; RATE_WIDTH],
-    public_keys: &Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    voting_keys: &Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
     branches: &Vec<[BaseElement; TREE_DEPTH * RATE_WIDTH]>,
     hash_indices: &Vec<usize>,
 ) -> bool {
-    for i in 0..public_keys.len() {
-        let public_key = public_keys[i];
+    for i in 0..voting_keys.len() {
+        let voting_key = voting_keys[i];
         let branch = branches[i];
         let hash_index = hash_indices[i];
-        let mut h = hash_public_key(&public_key);
+        let mut h = hash_voting_key(&voting_key);
 
         for j in 0..TREE_DEPTH {
             let hash_bit_index = (hash_index >> j) & 1;
@@ -289,17 +338,17 @@ fn random_array<const NREGS: usize>() -> [BaseElement; NREGS] {
     point
 }
 
-fn hash_public_key(public_key: &[BaseElement; AFFINE_POINT_WIDTH]) -> [BaseElement; RATE_WIDTH] {
+fn hash_voting_key(voting_key: &[BaseElement; AFFINE_POINT_WIDTH]) -> [BaseElement; RATE_WIDTH] {
     let mut hash_message = [BaseElement::ZERO; RATE_WIDTH];
-    hash_message[..POINT_COORDINATE_WIDTH].copy_from_slice(&public_key[..POINT_COORDINATE_WIDTH]);
+    hash_message[..POINT_COORDINATE_WIDTH].copy_from_slice(&voting_key[..POINT_COORDINATE_WIDTH]);
     let mut h = Rescue63::digest(&hash_message);
     let message_chunk = rescue::Hash::new(
-        public_key[POINT_COORDINATE_WIDTH],
-        public_key[POINT_COORDINATE_WIDTH + 1],
-        public_key[POINT_COORDINATE_WIDTH + 2],
-        public_key[POINT_COORDINATE_WIDTH + 3],
-        public_key[POINT_COORDINATE_WIDTH + 4],
-        public_key[POINT_COORDINATE_WIDTH + 5],
+        voting_key[POINT_COORDINATE_WIDTH],
+        voting_key[POINT_COORDINATE_WIDTH + 1],
+        voting_key[POINT_COORDINATE_WIDTH + 2],
+        voting_key[POINT_COORDINATE_WIDTH + 3],
+        voting_key[POINT_COORDINATE_WIDTH + 4],
+        voting_key[POINT_COORDINATE_WIDTH + 5],
         BaseElement::ZERO,
     );
     h = Rescue63::merge(&[h, message_chunk]);

@@ -17,13 +17,13 @@ use winterfell::math::{fields::f63::BaseElement, FieldElement};
 // ================================================================================================
 
 pub(crate) fn init_merkle_verification_state(
-    public_key: &[BaseElement; AFFINE_POINT_WIDTH],
+    voting_key: &[BaseElement; AFFINE_POINT_WIDTH],
     state: &mut [BaseElement],
 ) {
     state[..TRACE_WIDTH].fill(BaseElement::ZERO);
 
     // put the public key into capacity registers for hashing
-    state[1..POINT_COORDINATE_WIDTH + 1].copy_from_slice(&public_key[..POINT_COORDINATE_WIDTH]);
+    state[1..POINT_COORDINATE_WIDTH + 1].copy_from_slice(&voting_key[..POINT_COORDINATE_WIDTH]);
 }
 
 // TRANSITION FUNCTION

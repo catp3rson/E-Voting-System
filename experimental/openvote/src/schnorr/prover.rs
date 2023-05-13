@@ -43,7 +43,7 @@ impl SchnorrProver {
         let mut trace = TraceTable::new(TRACE_WIDTH, trace_length);
         trace.fragments(SIG_CYCLE_LENGTH).for_each(|mut sig_trace| {
             let i = sig_trace.index();
-            let (pkey_point, s_bytes, h_bytes) =
+            let (vkey_point, s_bytes, h_bytes) =
                 build_sig_info(&self.messages[i], &self.signatures[i]);
             let s_bits = s_bytes.as_bits::<Lsb0>();
             let h_bits = h_bytes.as_bits::<Lsb0>();
@@ -55,7 +55,7 @@ impl SchnorrProver {
                     update_sig_verification_state(
                         step,
                         self.messages[i],
-                        pkey_point,
+                        vkey_point,
                         s_bits,
                         h_bits,
                         state,

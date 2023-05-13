@@ -31,7 +31,7 @@ use alloc::vec::Vec;
 
 #[derive(Debug, Clone)]
 pub struct PublicInputs {
-    // [pk, ev, a1, b1, a2, b2]
+    // [vk, ev, a1, b1, a2, b2]
     pub proofs: Vec<[BaseElement; AFFINE_POINT_WIDTH * 6]>,
     pub outputs: Vec<[BaseElement; AFFINE_POINT_WIDTH * 5]>,
 }
@@ -93,7 +93,7 @@ impl Air for CDSAir {
 
         let hash_digest_register_flag = &periodic_values[5..9];
 
-        let public_key = &periodic_values[9..9 + AFFINE_POINT_WIDTH];
+        let voting_key = &periodic_values[9..9 + AFFINE_POINT_WIDTH];
         let blinding_key = &periodic_values[9 + AFFINE_POINT_WIDTH..9 + AFFINE_POINT_WIDTH * 2];
         let encrypted_vote =
             &periodic_values[9 + AFFINE_POINT_WIDTH * 2..9 + AFFINE_POINT_WIDTH * 3];
@@ -119,7 +119,7 @@ impl Air for CDSAir {
             // Rescue round constants
             ark,
             // Points in proof
-            public_key,
+            voting_key,
             blinding_key,
             encrypted_vote,
             // Inputs to Rescue hash
@@ -148,7 +148,7 @@ impl Air for CDSAir {
         for i in 0..PROJECTIVE_POINT_WIDTH {
             let value = BaseElement::from((i == POINT_COORDINATE_WIDTH) as u8);
             assertions.append(&mut vec![
-                // c * pk
+                // c * vk
                 Assertion::periodic(i, 0, CDS_CYCLE_LENGTH, value),
                 // r1 * g / r2 * g
                 Assertion::periodic(i + PROJECTIVE_POINT_WIDTH + 1, 0, NROWS_PER_PHASE, value),
@@ -159,7 +159,7 @@ impl Air for CDSAir {
                     NROWS_PER_PHASE,
                     value,
                 ),
-                // d1 * pk / d2 * pk
+                // d1 * vk / d2 * vk
                 Assertion::periodic(
                     i + 3 * PROJECTIVE_POINT_WIDTH + 2,
                     0,
@@ -241,7 +241,7 @@ impl Air for CDSAir {
         }
 
         // END OF CYCLE
-        // (c - d1 - d2) * pk
+        // (c - d1 - d2) * vk
         for i in 0..POINT_COORDINATE_WIDTH {
             assertions.push(Assertion::sequence(
                 i,
@@ -288,7 +288,7 @@ impl Air for CDSAir {
 
         let mut blinding_keys = vec![vec![BaseElement::ZERO; trace_width]; AFFINE_POINT_WIDTH];
 
-        let mut public_keys = vec![vec![BaseElement::ZERO; trace_width]; AFFINE_POINT_WIDTH];
+        let mut voting_keys = vec![vec![BaseElement::ZERO; trace_width]; AFFINE_POINT_WIDTH];
 
         let mut encrypted_votes = vec![vec![BaseElement::ZERO; trace_width]; AFFINE_POINT_WIDTH];
 
@@ -319,11 +319,11 @@ impl Air for CDSAir {
                 }
             }
 
-            for i in 0..public_keys.len() {
+            for i in 0..voting_keys.len() {
                 blinding_keys[i]
                     [voter_index * CDS_CYCLE_LENGTH..(voter_index + 1) * CDS_CYCLE_LENGTH]
                     .fill(affine_blinding_key[i]);
-                public_keys[i]
+                voting_keys[i]
                     [voter_index * CDS_CYCLE_LENGTH..(voter_index + 1) * CDS_CYCLE_LENGTH]
                     .fill(proof[i]);
                 encrypted_votes[i][voter_index * CDS_CYCLE_LENGTH
@@ -347,7 +347,7 @@ impl Air for CDSAir {
         // Stitch in the above columns in the appropriate places
         stitch(
             &mut columns,
-            public_keys,
+            voting_keys,
             (9..9 + AFFINE_POINT_WIDTH).enumerate().collect(),
         );
         stitch(
@@ -490,7 +490,7 @@ pub(crate) fn evaluate_constraints<E: FieldElement + From<BaseElement>>(
     current: &[E],
     next: &[E],
     ark: &[E],
-    public_key: &[E],
+    voting_key: &[E],
     blinding_key: &[E],
     encrypted_vote: &[E],
     hash_internal_inputs: &[E],
@@ -508,13 +508,13 @@ pub(crate) fn evaluate_constraints<E: FieldElement + From<BaseElement>>(
     let generator_point: Vec<E> = GENERATOR.iter().map(|&coord| coord.into()).collect();
 
     // Point to be used in the double-and-add operations of registers [PROJECTIVE_POINT_WIDTH + 1..PROJECTIVE_POINT_WIDTH * 2 + 1] (h.P)
-    // let public_key: Vec<E> = public_key.to_vec();
+    // let voting_key: Vec<E> = voting_key.to_vec();
 
     // When scalar_mult_flag = 1, constraints for a double-and-add
     // step are enforced on the dedicated registers for S and h.P,
     // as well as a double-and-add in the field for bin(h).
 
-    // Enforce a step of double-and-add in the group for c * pk
+    // Enforce a step of double-and-add in the group for c * vk
     ecc::enforce_point_doubling(
         &mut result[..PROJECTIVE_POINT_WIDTH + 1],
         &current[..PROJECTIVE_POINT_WIDTH + 1],
@@ -526,7 +526,7 @@ pub(crate) fn evaluate_constraints<E: FieldElement + From<BaseElement>>(
         &mut result[..PROJECTIVE_POINT_WIDTH + 1],
         &current[..PROJECTIVE_POINT_WIDTH + 1],
         &next[..PROJECTIVE_POINT_WIDTH + 1],
-        public_key,
+        voting_key,
         c_addition_flag,
     );
 
@@ -570,7 +570,7 @@ pub(crate) fn evaluate_constraints<E: FieldElement + From<BaseElement>>(
         addition_flag,
     );
 
-    // Enforce a step of double-and-add in the group for d1 * pk
+    // Enforce a step of double-and-add in the group for d1 * vk
     ecc::enforce_point_doubling_bit(
         &mut result[3 * PROJECTIVE_POINT_WIDTH + 2..4 * PROJECTIVE_POINT_WIDTH + 2],
         &current[3 * PROJECTIVE_POINT_WIDTH + 2..4 * PROJECTIVE_POINT_WIDTH + 2],
@@ -582,7 +582,7 @@ pub(crate) fn evaluate_constraints<E: FieldElement + From<BaseElement>>(
         &mut result[3 * PROJECTIVE_POINT_WIDTH + 2..5 * PROJECTIVE_POINT_WIDTH + 3],
         &current[3 * PROJECTIVE_POINT_WIDTH + 2..5 * PROJECTIVE_POINT_WIDTH + 3],
         &next[3 * PROJECTIVE_POINT_WIDTH + 2..5 * PROJECTIVE_POINT_WIDTH + 3],
-        public_key,
+        voting_key,
         2 * PROJECTIVE_POINT_WIDTH,
         addition_flag,
     );
@@ -655,7 +655,7 @@ pub(crate) fn evaluate_constraints<E: FieldElement + From<BaseElement>>(
         hash_internal_inputs,
     );
 
-    // Subtract d1 * pk from c * pk, with the result stored directly in the coordinates of c * pk
+    // Subtract d1 * vk from c * vk, with the result stored directly in the coordinates of c * vk
     ecc::enforce_point_addition(
         &mut result[..PROJECTIVE_POINT_WIDTH],
         &current[..PROJECTIVE_POINT_WIDTH],
@@ -666,12 +666,12 @@ pub(crate) fn evaluate_constraints<E: FieldElement + From<BaseElement>>(
         final_point_addition_flag,
     );
 
-    // Add d1 * pk to r1 * g, with the result stored directly in the coordinates of r1 * g
+    // Add d1 * vk to r1 * g, with the result stored directly in the coordinates of r1 * g
     ecc::enforce_point_addition_reduce_affine(
         &mut result[PROJECTIVE_POINT_WIDTH + 1..2 * PROJECTIVE_POINT_WIDTH + 1],
         &current[PROJECTIVE_POINT_WIDTH + 1..2 * PROJECTIVE_POINT_WIDTH + 1], // r1 * g
         &next[PROJECTIVE_POINT_WIDTH + 1..2 * PROJECTIVE_POINT_WIDTH + 1],
-        &current[3 * PROJECTIVE_POINT_WIDTH + 2..4 * PROJECTIVE_POINT_WIDTH + 2], // d1 * pk
+        &current[3 * PROJECTIVE_POINT_WIDTH + 2..4 * PROJECTIVE_POINT_WIDTH + 2], // d1 * vk
         final_point_addition_flag,
     );
 
@@ -814,7 +814,7 @@ fn transpose_proof_points(
                 proof_points[i + 3 * AFFINE_POINT_WIDTH] + output[i + 3 * AFFINE_POINT_WIDTH],
             );
         }
-        // x and z coordinates of (c - d1 - d2) * pk
+        // x and z coordinates of (c - d1 - d2) * vk
         for i in 0..AFFINE_POINT_WIDTH {
             result3[i].push(output[i + 4 * AFFINE_POINT_WIDTH]);
         }

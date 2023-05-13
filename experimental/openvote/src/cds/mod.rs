@@ -83,7 +83,7 @@ pub fn get_example(
 #[derive(Clone, Debug)]
 pub struct CDSExample {
     options: ProofOptions,
-    public_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
     encrypted_votes: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
     proof_points: Vec<[BaseElement; AFFINE_POINT_WIDTH * PROOF_NUM_POINTS]>,
     proof_scalars: Vec<[Scalar; PROOF_NUM_SCALARS]>,
@@ -105,30 +105,30 @@ impl CDSExample {
     ) {
         let mut rng = OsRng;
         let mut secret_keys = Vec::with_capacity(num_proofs);
-        let mut public_keys = Vec::with_capacity(num_proofs);
+        let mut voting_keys = Vec::with_capacity(num_proofs);
         let mut blinding_keys = Vec::with_capacity(num_proofs);
         let mut votes = Vec::with_capacity(num_proofs);
 
         // prepare secret keys and public keys
         for _ in 0..num_proofs {
             let secret_key = Scalar::random(&mut rng);
-            let public_key = ProjectivePoint::generator() * secret_key;
+            let voting_key = ProjectivePoint::generator() * secret_key;
             secret_keys.push(secret_key);
-            public_keys.push(public_key);
+            voting_keys.push(voting_key);
         }
 
         // prepare blinding keys and random votes
         let mut blinding_key = ProjectivePoint::identity();
-        for &public_key in public_keys.iter().skip(1) {
-            blinding_key -= public_key;
+        for &voting_key in voting_keys.iter().skip(1) {
+            blinding_key -= voting_key;
         }
 
         for i in 0..num_proofs {
             blinding_keys.push(blinding_key);
             votes.push(rng.next_u32() % 2 == 1);
             if i + 1 < num_proofs {
-                blinding_key += public_keys[i];
-                blinding_key += public_keys[i + 1];
+                blinding_key += voting_keys[i];
+                blinding_key += voting_keys[i + 1];
             }
         }
 
@@ -138,7 +138,7 @@ impl CDSExample {
         let (encrypted_votes, proof_scalars, proof_points) = encrypt_votes_and_compute_proofs(
             num_proofs,
             &secret_keys,
-            &public_keys,
+            &voting_keys,
             &blinding_keys,
             &votes,
         );
@@ -155,7 +155,7 @@ impl CDSExample {
         let now = Instant::now();
 
         assert!(naive_verify_cds_proofs(
-            &public_keys,
+            &voting_keys,
             &encrypted_votes,
             &proof_scalars,
             &proof_points
@@ -169,13 +169,13 @@ impl CDSExample {
         );
 
         let extra_data = (
-            public_keys.clone(),
+            voting_keys.clone(),
             encrypted_votes.clone(),
             proof_scalars.clone(),
             proof_points.clone(),
         );
 
-        let public_keys = public_keys
+        let voting_keys = voting_keys
             .into_iter()
             .map(|p| projective_to_elements(p))
             .collect::<Vec<[BaseElement; AFFINE_POINT_WIDTH]>>();
@@ -193,7 +193,7 @@ impl CDSExample {
         (
             CDSExample {
                 options,
-                public_keys,
+                voting_keys,
                 encrypted_votes,
                 proof_points,
                 proof_scalars,
@@ -209,12 +209,12 @@ impl CDSExample {
         debug!(
             "Generating proofs for verifying {} CDS proofs\n\
             ---------------------",
-            self.public_keys.len(),
+            self.voting_keys.len(),
         );
 
         let prover = CDSProver::new(
             self.options.clone(),
-            self.public_keys.clone(),
+            self.voting_keys.clone(),
             self.encrypted_votes.clone(),
             self.proof_points.clone(),
             self.proof_scalars.clone(),
@@ -263,7 +263,7 @@ impl CDSExample {
 pub(crate) fn encrypt_votes_and_compute_proofs(
     num_proofs: usize,
     secret_keys: &[Scalar],
-    public_keys: &[ProjectivePoint],
+    voting_keys: &[ProjectivePoint],
     blinding_keys: &[ProjectivePoint],
     votes: &[bool],
 ) -> (
@@ -273,7 +273,7 @@ pub(crate) fn encrypt_votes_and_compute_proofs(
 ) {
     assert!(
         secret_keys.len() == num_proofs
-            && public_keys.len() == num_proofs
+            && voting_keys.len() == num_proofs
             && blinding_keys.len() == num_proofs
             && votes.len() == num_proofs,
         "Inconsistent length."
@@ -302,7 +302,7 @@ pub(crate) fn encrypt_votes_and_compute_proofs(
         if votes[i] {
             let r1 = Scalar::random(rng);
             let d1 = Scalar::random(rng);
-            let a1 = ProjectivePoint::generator() * r1 + public_keys[i] * d1;
+            let a1 = ProjectivePoint::generator() * r1 + voting_keys[i] * d1;
             let b1 =
                 blinding_keys[i] * r1 + (encrypted_votes[i] + ProjectivePoint::generator()) * d1;
             let a2 = ProjectivePoint::generator() * w;
@@ -312,7 +312,7 @@ pub(crate) fn encrypt_votes_and_compute_proofs(
         } else {
             let r2 = Scalar::random(rng);
             let d2 = Scalar::random(rng);
-            let a2 = ProjectivePoint::generator() * r2 + public_keys[i] * d2;
+            let a2 = ProjectivePoint::generator() * r2 + voting_keys[i] * d2;
             let b2 =
                 blinding_keys[i] * r2 + (encrypted_votes[i] - ProjectivePoint::generator()) * d2;
             let a1 = ProjectivePoint::generator() * w;
@@ -325,7 +325,7 @@ pub(crate) fn encrypt_votes_and_compute_proofs(
     // compute the challenge and proof scalars
     for i in 0..num_proofs {
         let hash_message =
-            points_to_hash_message(i, public_keys[i], encrypted_votes[i], &proof_points[i]);
+            points_to_hash_message(i, voting_keys[i], encrypted_votes[i], &proof_points[i]);
         let c_bytes = hash_message_bytes(&hash_message);
         let c_bits = c_bytes.as_bits::<Lsb0>();
         let c_scalar = Scalar::from_bits(c_bits);
@@ -355,23 +355,23 @@ pub(crate) fn encrypt_votes_and_compute_proofs(
 
 /// Naively varify CDS proofs
 pub fn naive_verify_cds_proofs(
-    public_keys: &[ProjectivePoint],
+    voting_keys: &[ProjectivePoint],
     encrypted_votes: &[ProjectivePoint],
     proof_scalars: &[[Scalar; PROOF_NUM_SCALARS]],
     proof_points: &[[ProjectivePoint; PROOF_NUM_POINTS]],
 ) -> bool {
     // compute blinding keys
-    let num_proofs = public_keys.len();
+    let num_proofs = voting_keys.len();
     let mut blinding_keys = Vec::with_capacity(num_proofs);
     let mut blinding_key = ProjectivePoint::identity();
     for i in 1..num_proofs {
-        blinding_key -= public_keys[i];
+        blinding_key -= voting_keys[i];
     }
     for i in 0..num_proofs {
         blinding_keys.push(blinding_key);
         if i + 1 < num_proofs {
-            blinding_key += public_keys[i];
-            blinding_key += public_keys[i + 1];
+            blinding_key += voting_keys[i];
+            blinding_key += voting_keys[i + 1];
         }
     }
 
@@ -386,15 +386,15 @@ pub fn naive_verify_cds_proofs(
         let a2 = points[2];
         let b2: ProjectivePoint = points[3];
 
-        let hash_message = points_to_hash_message(i, public_keys[i], encrypted_votes[i], points);
+        let hash_message = points_to_hash_message(i, voting_keys[i], encrypted_votes[i], points);
         let c_bytes = hash_message_bytes(&hash_message);
         let c_bits = c_bytes.as_bits::<Lsb0>();
         let c_scalar = Scalar::from_bits(c_bits);
         if (c_scalar != d1 + d2)
-            || (a1 != ProjectivePoint::generator() * r1 + public_keys[i] * d1)
+            || (a1 != ProjectivePoint::generator() * r1 + voting_keys[i] * d1)
             || (b1
                 != blinding_keys[i] * r1 + (encrypted_votes[i] + ProjectivePoint::generator()) * d1)
-            || (a2 != ProjectivePoint::generator() * r2 + public_keys[i] * d2)
+            || (a2 != ProjectivePoint::generator() * r2 + voting_keys[i] * d2)
             || (b2
                 != blinding_keys[i] * r2 + (encrypted_votes[i] - ProjectivePoint::generator()) * d2)
         {
@@ -427,7 +427,7 @@ fn concat_proof_points(
 #[inline]
 fn points_to_hash_message(
     voter_index: usize,
-    public_key: ProjectivePoint,
+    voting_key: ProjectivePoint,
     encrypted_vote: ProjectivePoint,
     proof_points: &[ProjectivePoint; PROOF_NUM_POINTS],
 ) -> [BaseElement; HASH_MSG_LENGTH] {
@@ -435,7 +435,7 @@ fn points_to_hash_message(
     let proof_points = concat_proof_points(proof_points);
     hash_message[0] = BaseElement::from(voter_index as u8);
     hash_message[AFFINE_POINT_WIDTH..AFFINE_POINT_WIDTH * 2]
-        .copy_from_slice(&projective_to_elements(public_key));
+        .copy_from_slice(&projective_to_elements(voting_key));
     hash_message[AFFINE_POINT_WIDTH * 2..AFFINE_POINT_WIDTH * 3]
         .copy_from_slice(&projective_to_elements(encrypted_vote));
     hash_message[AFFINE_POINT_WIDTH * 3..AFFINE_POINT_WIDTH * (PROOF_NUM_POINTS + 3)]

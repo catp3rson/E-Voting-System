@@ -35,7 +35,7 @@ pub(crate) fn init_sig_verification_state(
 pub(crate) fn update_sig_verification_state(
     step: usize,
     message: [BaseElement; AFFINE_POINT_WIDTH * 2 + 4],
-    pkey_point: [BaseElement; AFFINE_POINT_WIDTH],
+    vkey_point: [BaseElement; AFFINE_POINT_WIDTH],
     s_bits: &BitSlice<Lsb0, u8>,
     h_bits: &BitSlice<Lsb0, u8>,
     state: &mut [BaseElement],
@@ -98,7 +98,7 @@ pub(crate) fn update_sig_verification_state(
                 );
                 ecc::apply_point_addition_mixed(
                     &mut state[PROJECTIVE_POINT_WIDTH + 1..2 * PROJECTIVE_POINT_WIDTH + 2],
-                    &pkey_point,
+                    &vkey_point,
                 );
             }
         }
@@ -128,8 +128,8 @@ pub(crate) fn build_sig_info(
     message: &[BaseElement; AFFINE_POINT_WIDTH * 2 + 4],
     signature: &([BaseElement; POINT_COORDINATE_WIDTH], Scalar),
 ) -> ([BaseElement; AFFINE_POINT_WIDTH], [u8; 32], [u8; 32]) {
-    let mut pkey_point = [BaseElement::ZERO; AFFINE_POINT_WIDTH];
-    pkey_point.clone_from_slice(&message[..AFFINE_POINT_WIDTH]);
+    let mut vkey_point = [BaseElement::ZERO; AFFINE_POINT_WIDTH];
+    vkey_point.clone_from_slice(&message[..AFFINE_POINT_WIDTH]);
     let s_bytes = signature.1.to_bytes();
 
     let h = super::hash_message(signature.0, *message);
@@ -138,5 +138,5 @@ pub(crate) fn build_sig_info(
         h_bytes[8 * i..8 * i + 8].copy_from_slice(&h_word.to_bytes());
     }
 
-    (pkey_point, s_bytes, h_bytes)
+    (vkey_point, s_bytes, h_bytes)
 }

@@ -20,14 +20,14 @@ pub(crate) fn init_cds_verification_state(voter_index: usize, state: &mut [BaseE
     // initialize first state of the computation
     state[..TRACE_WIDTH].fill(BaseElement::ZERO);
 
-    // y(c * pk) = 1
+    // y(c * vk) = 1
     state[POINT_COORDINATE_WIDTH] = BaseElement::ONE;
 
     // y(r1 * g) = y(r1 * bk) = 1
     state[PROJECTIVE_POINT_WIDTH + POINT_COORDINATE_WIDTH + 1] = BaseElement::ONE;
     state[PROJECTIVE_POINT_WIDTH * 2 + POINT_COORDINATE_WIDTH + 1] = BaseElement::ONE;
 
-    // y(d1 * pk) = y(d1 * (ev + G)) = 1
+    // y(d1 * vk) = y(d1 * (ev + G)) = 1
     state[PROJECTIVE_POINT_WIDTH * 3 + POINT_COORDINATE_WIDTH + 2] = BaseElement::ONE;
     state[PROJECTIVE_POINT_WIDTH * 4 + POINT_COORDINATE_WIDTH + 2] = BaseElement::ONE;
 
@@ -41,7 +41,7 @@ pub(crate) fn init_cds_verification_state(voter_index: usize, state: &mut [BaseE
 pub(crate) fn update_cds_verification_state(
     step: usize,
     hash_msg: &[BaseElement; HASH_MSG_LENGTH],
-    public_key: &[BaseElement; AFFINE_POINT_WIDTH],
+    voting_key: &[BaseElement; AFFINE_POINT_WIDTH],
     blinding_key: &[BaseElement; AFFINE_POINT_WIDTH],
     encrypted_vote_1: &[BaseElement; AFFINE_POINT_WIDTH],
     encrypted_vote_2: &[BaseElement; AFFINE_POINT_WIDTH],
@@ -135,10 +135,10 @@ pub(crate) fn update_cds_verification_state(
                     );
                 }
             } else {
-                // c * pk
+                // c * vk
                 ecc::apply_point_addition_mixed(
                     &mut state[..PROJECTIVE_POINT_WIDTH + 1],
-                    public_key,
+                    voting_key,
                 );
                 // r1 * g / r2 * g
                 ecc::apply_point_addition_mixed_bit(
@@ -151,10 +151,10 @@ pub(crate) fn update_cds_verification_state(
                     &mut state[2 * PROJECTIVE_POINT_WIDTH + 1..3 * PROJECTIVE_POINT_WIDTH + 2],
                     blinding_key,
                 );
-                // d1 * pk / d2 * pk
+                // d1 * vk / d2 * vk
                 ecc::apply_point_addition_mixed_bit(
                     &mut state[3 * PROJECTIVE_POINT_WIDTH + 2..5 * PROJECTIVE_POINT_WIDTH + 3],
-                    public_key,
+                    voting_key,
                     2 * PROJECTIVE_POINT_WIDTH,
                 );
                 // d1 * (ev + G) / d2 * (ev - G)
@@ -169,13 +169,13 @@ pub(crate) fn update_cds_verification_state(
             }
         }
         Ordering::Equal => {
-            // calculate ((c - d1) * pk) / ((c - d1 - d2) * pk) and store it back into c * pk registers
+            // calculate ((c - d1) * vk) / ((c - d1 - d2) * vk) and store it back into c * vk registers
             let mut rhs = [BaseElement::ZERO; PROJECTIVE_POINT_WIDTH];
             rhs.copy_from_slice(&ecc::compute_negation_projective(
                 &state[3 * PROJECTIVE_POINT_WIDTH + 2..4 * PROJECTIVE_POINT_WIDTH + 2],
             ));
             ecc::compute_add(&mut state[..PROJECTIVE_POINT_WIDTH], &rhs);
-            // calculate (r1 * g + d1 * pk) / (r2 * g + d2 * pk) and store it back into r1 * g registers
+            // calculate (r1 * g + d1 * vk) / (r2 * g + d2 * vk) and store it back into r1 * g registers
             rhs.copy_from_slice(
                 &state[3 * PROJECTIVE_POINT_WIDTH + 2..4 * PROJECTIVE_POINT_WIDTH + 2],
             );
@@ -183,7 +183,7 @@ pub(crate) fn update_cds_verification_state(
                 &mut state[PROJECTIVE_POINT_WIDTH + 1..2 * PROJECTIVE_POINT_WIDTH + 1],
                 &rhs,
             );
-            // reduce (r1 * g + d1 * pk) / (r2 * g + d2 * pk)  to affine coordinates
+            // reduce (r1 * g + d1 * vk) / (r2 * g + d2 * vk)  to affine coordinates
             let reduced_point = ecc::reduce_to_affine(
                 &state[PROJECTIVE_POINT_WIDTH + 1..2 * PROJECTIVE_POINT_WIDTH + 1],
             );
@@ -214,7 +214,7 @@ pub(crate) fn update_cds_verification_state(
                 .fill(BaseElement::ZERO);
             state[PROJECTIVE_POINT_WIDTH + POINT_COORDINATE_WIDTH + 1] = BaseElement::ONE;
             state[PROJECTIVE_POINT_WIDTH * 2 + POINT_COORDINATE_WIDTH + 1] = BaseElement::ONE;
-            // reset d1 * pk and d1 * (ev + G) registers
+            // reset d1 * vk and d1 * (ev + G) registers
             state[3 * PROJECTIVE_POINT_WIDTH + 2..5 * PROJECTIVE_POINT_WIDTH + 3]
                 .fill(BaseElement::ZERO);
             state[3 * PROJECTIVE_POINT_WIDTH + POINT_COORDINATE_WIDTH + 2] = BaseElement::ONE;
@@ -244,15 +244,15 @@ pub(crate) fn decompose_scalars(
 #[inline]
 pub(crate) fn prepare_hash_message(
     voter_index: usize,
-    public_key: &[BaseElement; AFFINE_POINT_WIDTH],
+    voting_key: &[BaseElement; AFFINE_POINT_WIDTH],
     encrypted_vote: &[BaseElement; AFFINE_POINT_WIDTH],
     proof_points: &[BaseElement; PROOF_NUM_POINTS * AFFINE_POINT_WIDTH],
 ) -> [BaseElement; HASH_MSG_LENGTH] {
-    // Message contains (i, pk, ev, a1, b1, a2, b2)
+    // Message contains (i, vk, ev, a1, b1, a2, b2)
     // 4 last null bytes are for padding
     let mut hash_msg = [BaseElement::ZERO; HASH_MSG_LENGTH];
     hash_msg[0] = BaseElement::from(voter_index as u8);
-    hash_msg[AFFINE_POINT_WIDTH..AFFINE_POINT_WIDTH * 2].copy_from_slice(public_key); // x
+    hash_msg[AFFINE_POINT_WIDTH..AFFINE_POINT_WIDTH * 2].copy_from_slice(voting_key); // x
     hash_msg[AFFINE_POINT_WIDTH * 2..AFFINE_POINT_WIDTH * 3].copy_from_slice(encrypted_vote); // y
     hash_msg[AFFINE_POINT_WIDTH * 3..AFFINE_POINT_WIDTH * (PROOF_NUM_POINTS + 3)]
         .copy_from_slice(proof_points); // a1, b1, a2, b2

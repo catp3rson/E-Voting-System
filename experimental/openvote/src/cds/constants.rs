@@ -36,7 +36,7 @@ pub const SCALAR_MUL_LENGTH: usize = 510;
 /// Total number of registers in the trace
 // 5 points in projective coordinates, 3 binary decompositions,
 // 4 field elements, 1 hash state
-/// Layout: | c * pk | c_bits | r1 * g | r1 * bk | r1_bits | d1 * pk | d1 * (ev + G) | d1_bits | c0 | c1 | c2 | c3 | hash |
+/// Layout: | c * vk | c_bits | r1 * g | r1 * bk | r1_bits | d1 * vk | d1 * (ev + G) | d1_bits | c0 | c1 | c2 | c3 | hash |
 pub const TRACE_WIDTH: usize = 5 * PROJECTIVE_POINT_WIDTH + 3 + 4 + STATE_WIDTH;
 
 /// Total number of steps in the trace for a single cds proof
@@ -52,5 +52,5 @@ pub const PROOF_NUM_POINTS: usize = 4;
 pub const PROOF_NUM_SCALARS: usize = 4;
 
 /// Length of hash message to calculate challenge
-/// [i, pk, ev, a1, b1, a2, b2] (i is voter index)
+/// [i, vk, ev, a1, b1, a2, b2] (i is voter index)
 pub const HASH_MSG_LENGTH: usize = NUM_HASH_ITER * RATE_WIDTH;

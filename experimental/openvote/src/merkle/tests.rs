@@ -7,31 +7,47 @@
 use winterfell::{FieldExtension, HashFunction, ProofOptions};
 
 #[test]
-fn merkle_test_basic_proof_verification() {
+fn merkle_test_proof_verification() {
     let merkle = super::MerkleExample::new(build_options(1), 8);
     let proof = merkle.prove();
     assert!(merkle.verify(proof).is_ok());
 }
 
 #[test]
-fn merkle_test_basic_proof_verification_quadratic_extension() {
+fn merkle_test_proof_verification_quadratic_extension() {
     let merkle = Box::new(super::MerkleExample::new(build_options(2), 8));
     let proof = merkle.prove();
     assert!(merkle.verify(proof).is_ok());
 }
 
 #[test]
-fn merkle_test_basic_proof_verification_cubic_extension() {
+fn merkle_test_proof_verification_cubic_extension() {
     let merkle = Box::new(super::MerkleExample::new(build_options(3), 8));
     let proof = merkle.prove();
     assert!(merkle.verify(proof).is_ok());
 }
 
 #[test]
-fn merkle_test_basic_proof_verification_fail() {
+fn merkle_test_proof_verification_wrong_voting_key() {
     let merkle = super::MerkleExample::new(build_options(1), 8);
     let proof = merkle.prove();
-    let verified = merkle.verify_with_wrong_inputs(proof);
+    let verified = merkle.verify_with_wrong_voting_key(proof);
+    assert!(verified.is_err());
+}
+
+#[test]
+fn merkle_test_proof_verification_wrong_root() {
+    let merkle = super::MerkleExample::new(build_options(1), 8);
+    let proof = merkle.prove();
+    let verified = merkle.verify_with_wrong_root(proof);
+    assert!(verified.is_err());
+}
+
+#[test]
+fn merkle_test_proof_verification_wrong_branches() {
+    let merkle = super::MerkleExample::new(build_options(1), 8);
+    let proof = merkle.prove_with_wrong_branches();
+    let verified = merkle.verify(proof);
     assert!(verified.is_err());
 }
 

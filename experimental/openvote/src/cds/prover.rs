@@ -23,7 +23,7 @@ use alloc::vec::Vec;
 pub struct CDSProver {
     options: ProofOptions,
     // x = g^{x_i}
-    public_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
     // y = h^{x_i} * G^{v_i}, v_i \in {-1, 1}
     encrypted_votes: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
     // a1, b1, a2, b2
@@ -36,14 +36,14 @@ pub struct CDSProver {
 impl CDSProver {
     pub fn new(
         options: ProofOptions,
-        public_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+        voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
         encrypted_votes: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
         proof_points: Vec<[BaseElement; AFFINE_POINT_WIDTH * PROOF_NUM_POINTS]>,
         proof_scalars: Vec<[Scalar; PROOF_NUM_SCALARS]>,
     ) -> Self {
         Self {
             options,
-            public_keys,
+            voting_keys,
             encrypted_votes,
             proof_points,
             proof_scalars,
@@ -51,7 +51,7 @@ impl CDSProver {
     }
 
     pub fn build_trace(&self) -> TraceTable<BaseElement> {
-        let num_proofs = self.public_keys.len();
+        let num_proofs = self.voting_keys.len();
         debug_assert!(num_proofs >= 2, "Number of proofs cannot be less than 2.");
         debug_assert!(
             num_proofs.is_power_of_two(),
@@ -64,15 +64,15 @@ impl CDSProver {
         let mut blinding_keys = Vec::with_capacity(num_proofs);
         let mut blinding_key = ecc::IDENTITY;
 
-        for public_key in self.public_keys[1..].iter() {
-            ecc::compute_add_mixed(&mut blinding_key, &ecc::compute_negation_affine(public_key));
+        for voting_key in self.voting_keys[1..].iter() {
+            ecc::compute_add_mixed(&mut blinding_key, &ecc::compute_negation_affine(voting_key));
         }
 
         for i in 0..num_proofs {
             blinding_keys.push(ecc::reduce_to_affine(&blinding_key));
             if i + 1 < num_proofs {
-                ecc::compute_add_mixed(&mut blinding_key, &self.public_keys[i]);
-                ecc::compute_add_mixed(&mut blinding_key, &self.public_keys[i + 1]);
+                ecc::compute_add_mixed(&mut blinding_key, &self.voting_keys[i]);
+                ecc::compute_add_mixed(&mut blinding_key, &self.voting_keys[i + 1]);
             }
         }
 
@@ -90,10 +90,10 @@ impl CDSProver {
             let r1_bits = r1_bytes.as_bits::<Lsb0>();
             let r2_bits = r2_bytes.as_bits::<Lsb0>();
 
-            // hash_msg = [i, pk, ev, a1, b1, a2, b2]
+            // hash_msg = [i, vk, ev, a1, b1, a2, b2]
             let hash_msg = prepare_hash_message(
                 i,
-                &self.public_keys[i],
+                &self.voting_keys[i],
                 &self.encrypted_votes[i],
                 &self.proof_points[i],
             );
@@ -109,7 +109,7 @@ impl CDSProver {
                     update_cds_verification_state(
                         step,
                         &hash_msg,
-                        &self.public_keys[i],
+                        &self.voting_keys[i],
                         &blinding_keys[i],
                         &encrypted_vote_1,
                         &encrypted_vote_2,
@@ -135,13 +135,13 @@ impl Prover for CDSProver {
     // This method should use the existing trace to extract the public inputs to be given
     // to the verifier.
     fn get_pub_inputs(&self, trace: &Self::Trace) -> PublicInputs {
-        let mut proofs = Vec::with_capacity(self.public_keys.len());
-        let mut outputs = Vec::with_capacity(self.public_keys.len());
+        let mut proofs = Vec::with_capacity(self.voting_keys.len());
+        let mut outputs = Vec::with_capacity(self.voting_keys.len());
 
-        for i in 0..self.public_keys.len() {
+        for i in 0..self.voting_keys.len() {
             // truncate CDS proof
             let mut proof = [BaseElement::ZERO; AFFINE_POINT_WIDTH * 6];
-            proof[..AFFINE_POINT_WIDTH].copy_from_slice(&self.public_keys[i]);
+            proof[..AFFINE_POINT_WIDTH].copy_from_slice(&self.voting_keys[i]);
             proof[AFFINE_POINT_WIDTH..AFFINE_POINT_WIDTH * 2]
                 .copy_from_slice(&self.encrypted_votes[i]);
             proof[AFFINE_POINT_WIDTH * 2..].copy_from_slice(&self.proof_points[i]);
@@ -191,7 +191,7 @@ impl Prover for CDSProver {
                 ),
             );
 
-            // validate x and z coordinates of (c - d1 - d2) * pk
+            // validate x and z coordinates of (c - d1 - d2) * vk
             output[AFFINE_POINT_WIDTH * 4..AFFINE_POINT_WIDTH * 4 + POINT_COORDINATE_WIDTH]
                 .copy_from_slice(&row[..POINT_COORDINATE_WIDTH]);
             output[AFFINE_POINT_WIDTH * 4 + POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH * 5]

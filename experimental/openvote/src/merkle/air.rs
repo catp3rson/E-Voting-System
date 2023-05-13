@@ -25,7 +25,7 @@ use winterfell::{
 
 pub struct PublicInputs {
     pub tree_root: [BaseElement; RATE_WIDTH],
-    pub public_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    pub voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
 }
 
 impl Serializable for PublicInputs {
@@ -37,7 +37,7 @@ impl Serializable for PublicInputs {
 pub struct MerkleAir {
     context: AirContext<BaseElement>,
     tree_root: [BaseElement; RATE_WIDTH],
-    public_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
 }
 
 impl Air for MerkleAir {
@@ -52,7 +52,7 @@ impl Air for MerkleAir {
         MerkleAir {
             context: AirContext::new(trace_info, degrees, options),
             tree_root: pub_inputs.tree_root,
-            public_keys: pub_inputs.public_keys,
+            voting_keys: pub_inputs.voting_keys,
         }
     }
 
@@ -116,17 +116,17 @@ impl Air for MerkleAir {
 
         // START OF TRACE
         // ensure that the hash pf public key is initiated correctly
-        for (key_index, public_key) in self.public_keys.iter().enumerate() {
+        for (key_index, voting_key) in self.voting_keys.iter().enumerate() {
             for i in 0..POINT_COORDINATE_WIDTH {
                 assertions.push(Assertion::single(
                     i + 1,
                     key_index * MERKLE_CYCLE_LENGTH,
-                    public_key[i],
+                    voting_key[i],
                 ));
                 assertions.push(Assertion::single(
                     i + RATE_WIDTH + 1,
                     key_index * MERKLE_CYCLE_LENGTH + HASH_CYCLE_LENGTH,
-                    public_key[i + POINT_COORDINATE_WIDTH],
+                    voting_key[i + POINT_COORDINATE_WIDTH],
                 ));
             }
             for i in POINT_COORDINATE_WIDTH + 1..STATE_WIDTH + 1 {

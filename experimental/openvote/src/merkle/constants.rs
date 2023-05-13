@@ -18,7 +18,7 @@ pub const TRACE_WIDTH: usize = STATE_WIDTH + 1;
 /// Depth of Merkle tree (root is excluded)
 /// depth = log_2(no. leaves)
 #[cfg(not(test))]
-pub const TREE_DEPTH: usize = 14;
+pub const TREE_DEPTH: usize = 6;
 
 #[cfg(test)]
 pub const TREE_DEPTH: usize = 6;
