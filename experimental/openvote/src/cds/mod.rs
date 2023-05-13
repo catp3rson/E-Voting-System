@@ -242,7 +242,7 @@ impl CDSExample {
     }
 
     #[cfg(test)]
-    fn verify_with_wrong_inputs(
+    fn verify_with_wrong_proof(
         &self,
         proof: StarkProof,
         pub_inputs: PublicInputs,
@@ -252,6 +252,20 @@ impl CDSExample {
         let fault_index = (rng.next_u32() as usize) % (pub_inputs.proofs.len());
         let fault_position = (rng.next_u32() as usize) % (pub_inputs.proofs[0].len());
         pub_inputs.proofs[fault_index][fault_position] += BaseElement::ONE;
+        winterfell::verify::<CDSAir>(proof, pub_inputs)
+    }
+
+    #[cfg(test)]
+    fn verify_with_wrong_outputs(
+        &self,
+        proof: StarkProof,
+        pub_inputs: PublicInputs,
+    ) -> Result<(), VerifierError> {
+        let mut pub_inputs = pub_inputs;
+        let mut rng = OsRng;
+        let fault_index = (rng.next_u32() as usize) % (pub_inputs.outputs.len());
+        let fault_position = (rng.next_u32() as usize) % (pub_inputs.outputs[0].len());
+        pub_inputs.outputs[fault_index][fault_position] += BaseElement::ONE;
         winterfell::verify::<CDSAir>(proof, pub_inputs)
     }
 }

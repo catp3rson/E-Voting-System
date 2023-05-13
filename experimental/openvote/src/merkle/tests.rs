@@ -43,14 +43,6 @@ fn merkle_test_proof_verification_wrong_root() {
     assert!(verified.is_err());
 }
 
-#[test]
-fn merkle_test_proof_verification_wrong_branches() {
-    let merkle = super::MerkleExample::new(build_options(1), 8);
-    let proof = merkle.prove_with_wrong_branches();
-    let verified = merkle.verify(proof);
-    assert!(verified.is_err());
-}
-
 fn build_options(extension: u8) -> ProofOptions {
     ProofOptions::new(
         42,

@@ -9,31 +9,39 @@
 use winterfell::{FieldExtension, HashFunction, ProofOptions};
 
 #[test]
-fn schnorr_test_basic_proof_verification() {
+fn schnorr_test_proof_verification() {
     let schnorr = super::SchnorrExample::new(build_options(1), 1);
     let proof = schnorr.prove();
     assert!(schnorr.verify(proof).is_ok());
 }
 
 #[test]
-fn schnorr_test_basic_proof_verification_quadratic_extension() {
+fn schnorr_test_proof_verification_quadratic_extension() {
     let schnorr = Box::new(super::SchnorrExample::new(build_options(2), 2));
     let proof = schnorr.prove();
     assert!(schnorr.verify(proof).is_ok());
 }
 
 #[test]
-fn schnorr_test_basic_proof_verification_cubic_extension() {
+fn schnorr_test_proof_verification_cubic_extension() {
     let schnorr = Box::new(super::SchnorrExample::new(build_options(3), 2));
     let proof = schnorr.prove();
     assert!(schnorr.verify(proof).is_ok());
 }
 
 #[test]
-fn schnorr_test_basic_proof_verification_fail() {
+fn schnorr_test_proof_verification_wrong_message() {
     let schnorr = super::SchnorrExample::new(build_options(1), 2);
     let proof = schnorr.prove();
-    let verified = schnorr.verify_with_wrong_inputs(proof);
+    let verified = schnorr.verify_with_wrong_message(proof);
+    assert!(verified.is_err());
+}
+
+#[test]
+fn schnorr_test_proof_verification_wrong_signature() {
+    let schnorr = super::SchnorrExample::new(build_options(1), 2);
+    let proof = schnorr.prove();
+    let verified = schnorr.verify_with_wrong_signature(proof);
     assert!(verified.is_err());
 }
 

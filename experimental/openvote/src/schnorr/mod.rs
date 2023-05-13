@@ -7,7 +7,7 @@
 // except according to those terms.
 
 use bitvec::{order::Lsb0, view::AsBits};
-use rand_core::OsRng;
+use rand_core::{OsRng, RngCore};
 use winterfell::{
     crypto::Hasher,
     math::{
@@ -181,10 +181,29 @@ impl SchnorrExample {
     }
 
     #[cfg(test)]
-    fn verify_with_wrong_inputs(&self, proof: StarkProof) -> Result<(), VerifierError> {
+    fn verify_with_wrong_message(&self, proof: StarkProof) -> Result<(), VerifierError> {
+        let mut rng = OsRng;
+        let fault_index = (rng.next_u32() as usize) % self.messages.len();
+        let fault_position = (rng.next_u32() as usize) % self.messages[0].len();
+        let mut wrong_messages = self.messages.clone();
+        wrong_messages[fault_index][fault_position] += BaseElement::ONE;
         let pub_inputs = PublicInputs {
-            messages: vec![self.messages[0]; self.signatures.len()],
+            messages: wrong_messages,
             signatures: self.signatures.clone(),
+        };
+        winterfell::verify::<SchnorrAir>(proof, pub_inputs)
+    }
+
+    #[cfg(test)]
+    fn verify_with_wrong_signature(&self, proof: StarkProof) -> Result<(), VerifierError> {
+        let mut rng = OsRng;
+        let fault_index = (rng.next_u32() as usize) % self.signatures.len();
+        let fault_position = (rng.next_u32() as usize) % self.signatures[0].0.len();
+        let mut wrong_signatures = self.signatures.clone();
+        wrong_signatures[fault_index].0[fault_position] += BaseElement::ONE;
+        let pub_inputs = PublicInputs {
+            messages: self.messages.clone(),
+            signatures: wrong_signatures,
         };
         winterfell::verify::<SchnorrAir>(proof, pub_inputs)
     }

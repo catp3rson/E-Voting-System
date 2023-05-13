@@ -156,26 +156,30 @@ impl TallyExample {
     }
 
     #[cfg(test)]
-    fn verify_with_wrong_inputs(&self, proof: StarkProof) -> Result<(), VerifierError> {
+    fn verify_with_wrong_encrypted_vote(&self, proof: StarkProof) -> Result<(), VerifierError> {
         let num_votes = self.encrypted_votes.len();
         let mut rng = OsRng;
         let mut pub_inputs = PublicInputs {
             encrypted_votes: self.encrypted_votes.clone(),
             tally_result: self.tally_result,
         };
+        let fault_idx = (rng.next_u32() as usize) % num_votes;
+        let fault_position = (rng.next_u32() as usize) % self.encrypted_votes[0].len();
+        pub_inputs.encrypted_votes[fault_idx][fault_position] += BaseElement::ONE;
+        winterfell::verify::<TallyAir>(proof, pub_inputs)
+    }
 
-        if rng.next_u32() % 2 == 1 {
-            // wrong encrypted vote
-            let fault_idx = (rng.next_u32() as usize) % num_votes;
-            let fault_position = (rng.next_u32() as usize) % self.encrypted_votes[0].len();
-            pub_inputs.encrypted_votes[fault_idx][fault_position] += BaseElement::ONE;
-        } else {
-            // wrong tally result
-            while pub_inputs.tally_result == self.tally_result {
-                pub_inputs.tally_result = rng.next_u64() % ((num_votes + 1) as u64);
-            }
+    #[cfg(test)]
+    fn verify_with_wrong_tally_result(&self, proof: StarkProof) -> Result<(), VerifierError> {
+        let num_votes = self.encrypted_votes.len();
+        let mut rng = OsRng;
+        let mut pub_inputs = PublicInputs {
+            encrypted_votes: self.encrypted_votes.clone(),
+            tally_result: self.tally_result,
+        };
+        while pub_inputs.tally_result == self.tally_result {
+            pub_inputs.tally_result = rng.next_u64() % ((num_votes + 1) as u64);
         }
-
         winterfell::verify::<TallyAir>(proof, pub_inputs)
     }
 }

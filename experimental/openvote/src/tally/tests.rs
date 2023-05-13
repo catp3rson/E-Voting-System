@@ -9,31 +9,39 @@
 use winterfell::{FieldExtension, HashFunction, ProofOptions};
 
 #[test]
-fn tally_test_basic_proof_verification() {
+fn tally_test_proof_verification() {
     let tally = super::TallyExample::new(build_options(1), 8);
     let proof = tally.prove();
     assert!(tally.verify(proof).is_ok());
 }
 
 #[test]
-fn tally_test_basic_proof_verification_quadratic_extension() {
+fn tally_test_proof_verification_quadratic_extension() {
     let tally = Box::new(super::TallyExample::new(build_options(2), 8));
     let proof = tally.prove();
     assert!(tally.verify(proof).is_ok());
 }
 
 #[test]
-fn tally_test_basic_proof_verification_cubic_extension() {
+fn tally_test_proof_verification_cubic_extension() {
     let tally = Box::new(super::TallyExample::new(build_options(3), 8));
     let proof = tally.prove();
     assert!(tally.verify(proof).is_ok());
 }
 
 #[test]
-fn tally_test_basic_proof_verification_fail() {
+fn tally_test_proof_verification_wrong_encrypted_vote() {
     let tally = super::TallyExample::new(build_options(1), 8);
     let proof = tally.prove();
-    let verified = tally.verify_with_wrong_inputs(proof);
+    let verified = tally.verify_with_wrong_encrypted_vote(proof);
+    assert!(verified.is_err());
+}
+
+#[test]
+fn tally_test_proof_verification_wrong_tally_result() {
+    let tally = super::TallyExample::new(build_options(1), 8);
+    let proof = tally.prove();
+    let verified = tally.verify_with_wrong_tally_result(proof);
     assert!(verified.is_err());
 }
 

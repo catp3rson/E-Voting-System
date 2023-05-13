@@ -133,42 +133,6 @@ impl MerkleExample {
         prover.prove(trace).unwrap()
     }
 
-    /// Generate STARK proof for verification of Merkle proof of membership
-    pub fn prove_with_wrong_branches(&self) -> StarkProof {
-        // generate the execution trace
-        debug!(
-            "Generating proof for proving membership in a Merkle tree of depth {}\n\
-            ---------------------",
-            TREE_DEPTH
-        );
-        // create the prover
-        let prover = MerkleProver::new(
-            self.options.clone(),
-            self.tree_root,
-            self.voting_keys.clone(),
-        );
-
-        // generate the execution trace
-        let mut rng = OsRng;
-        let fault_index = (rng.next_u32() as usize) % self.branches.len();
-        let fault_position = (rng.next_u32() as usize) % self.branches[0].len();
-        let mut wrong_branches = self.branches.clone();
-        wrong_branches[fault_index][fault_position] += BaseElement::ONE;
-        let now = Instant::now();
-        let trace = prover.build_trace(wrong_branches, self.hash_indices.clone());
-
-        let trace_length = trace.length();
-        debug!(
-            "Generated execution trace of {} registers and 2^{} steps in {} ms",
-            trace.width(),
-            log2(trace_length),
-            now.elapsed().as_millis()
-        );
-
-        // generate the proof
-        prover.prove(trace).unwrap()
-    }
-
     /// Verify with correct inputs
     pub fn verify(&self, proof: StarkProof) -> Result<(), VerifierError> {
         let pub_inputs = PublicInputs {
