@@ -75,8 +75,10 @@ pub fn get_example(num_signatures: usize) -> SchnorrExample {
 #[derive(Clone, Debug)]
 pub struct SchnorrExample {
     options: ProofOptions,
-    messages: Vec<[BaseElement; AFFINE_POINT_WIDTH * 2 + 4]>,
-    signatures: Vec<([BaseElement; POINT_COORDINATE_WIDTH], Scalar)>,
+    /// Messages
+    pub messages: Vec<[BaseElement; AFFINE_POINT_WIDTH * 2 + 4]>,
+    /// Schnorr signatures
+    pub signatures: Vec<([BaseElement; POINT_COORDINATE_WIDTH], Scalar)>,
 }
 
 impl SchnorrExample {

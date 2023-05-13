@@ -40,7 +40,7 @@ codegen-units = 1
 lto = true
 
 [[bench]]
-name = "merkle_proof"
+name = "merkle"
 harness = false
 
 [[bench]]
@@ -49,4 +49,8 @@ harness = false
 
 [[bench]]
 name = "cds"
+harness = false
+
+[[bench]]
+name = "tally"
 harness = false

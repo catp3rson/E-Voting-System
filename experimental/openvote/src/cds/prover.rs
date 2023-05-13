@@ -4,7 +4,7 @@ use super::{air::CDSAir, constants::*, diff_registers};
 use bitvec::{order::Lsb0, view::AsBits};
 use winterfell::{
     math::{curves::curve_f63::Scalar, fields::f63::BaseElement, FieldElement},
-    ProofOptions, Prover, TraceTable, Trace,
+    ProofOptions, Prover, Trace, TraceTable,
 };
 
 #[cfg(feature = "concurrent")]
@@ -154,44 +154,52 @@ impl Prover for CDSProver {
             trace.read_row_into(SCALAR_MUL_LENGTH + CDS_CYCLE_LENGTH * i + 1, &mut row);
 
             // validate a1
-            output[..AFFINE_POINT_WIDTH]
-                .copy_from_slice(&diff_registers::<AFFINE_POINT_WIDTH>(
-                    &row[PROJECTIVE_POINT_WIDTH + 1..PROJECTIVE_POINT_WIDTH + AFFINE_POINT_WIDTH + 1],
-                    &self.proof_points[i][..AFFINE_POINT_WIDTH]
-                ));
-            
-            // validate b1
-            output[AFFINE_POINT_WIDTH..AFFINE_POINT_WIDTH * 2]
-                .copy_from_slice(&diff_registers::<AFFINE_POINT_WIDTH>(
-                    &row[2 * PROJECTIVE_POINT_WIDTH + 1..2 * PROJECTIVE_POINT_WIDTH + AFFINE_POINT_WIDTH + 1],
-                    &self.proof_points[i][AFFINE_POINT_WIDTH..AFFINE_POINT_WIDTH * 2]
-                ));
+            output[..AFFINE_POINT_WIDTH].copy_from_slice(&diff_registers::<AFFINE_POINT_WIDTH>(
+                &row[PROJECTIVE_POINT_WIDTH + 1..PROJECTIVE_POINT_WIDTH + AFFINE_POINT_WIDTH + 1],
+                &self.proof_points[i][..AFFINE_POINT_WIDTH],
+            ));
 
-            trace.read_row_into(SCALAR_MUL_LENGTH + NROWS_PER_PHASE + CDS_CYCLE_LENGTH * i + 1, &mut row);
+            // validate b1
+            output[AFFINE_POINT_WIDTH..AFFINE_POINT_WIDTH * 2].copy_from_slice(&diff_registers::<
+                AFFINE_POINT_WIDTH,
+            >(
+                &row[2 * PROJECTIVE_POINT_WIDTH + 1
+                    ..2 * PROJECTIVE_POINT_WIDTH + AFFINE_POINT_WIDTH + 1],
+                &self.proof_points[i][AFFINE_POINT_WIDTH..AFFINE_POINT_WIDTH * 2],
+            ));
+
+            trace.read_row_into(
+                SCALAR_MUL_LENGTH + NROWS_PER_PHASE + CDS_CYCLE_LENGTH * i + 1,
+                &mut row,
+            );
 
             // validate a2
-            output[AFFINE_POINT_WIDTH * 2..AFFINE_POINT_WIDTH * 3]
-                .copy_from_slice(&diff_registers::<AFFINE_POINT_WIDTH>(
-                    &row[PROJECTIVE_POINT_WIDTH + 1..PROJECTIVE_POINT_WIDTH + AFFINE_POINT_WIDTH + 1],
-                    &self.proof_points[i][AFFINE_POINT_WIDTH * 2..AFFINE_POINT_WIDTH * 3]
-                ));
+            output[AFFINE_POINT_WIDTH * 2..AFFINE_POINT_WIDTH * 3].copy_from_slice(
+                &diff_registers::<AFFINE_POINT_WIDTH>(
+                    &row[PROJECTIVE_POINT_WIDTH + 1
+                        ..PROJECTIVE_POINT_WIDTH + AFFINE_POINT_WIDTH + 1],
+                    &self.proof_points[i][AFFINE_POINT_WIDTH * 2..AFFINE_POINT_WIDTH * 3],
+                ),
+            );
 
             // validate b2
-            output[AFFINE_POINT_WIDTH * 3..AFFINE_POINT_WIDTH * 4]
-                .copy_from_slice(&diff_registers::<AFFINE_POINT_WIDTH>(
-                    &row[2 * PROJECTIVE_POINT_WIDTH + 1..2 * PROJECTIVE_POINT_WIDTH + AFFINE_POINT_WIDTH + 1],
-                    &self.proof_points[i][AFFINE_POINT_WIDTH * 3..AFFINE_POINT_WIDTH * 4]
-                ));
+            output[AFFINE_POINT_WIDTH * 3..AFFINE_POINT_WIDTH * 4].copy_from_slice(
+                &diff_registers::<AFFINE_POINT_WIDTH>(
+                    &row[2 * PROJECTIVE_POINT_WIDTH + 1
+                        ..2 * PROJECTIVE_POINT_WIDTH + AFFINE_POINT_WIDTH + 1],
+                    &self.proof_points[i][AFFINE_POINT_WIDTH * 3..AFFINE_POINT_WIDTH * 4],
+                ),
+            );
 
             // validate x and z coordinates of (c - d1 - d2) * pk
             output[AFFINE_POINT_WIDTH * 4..AFFINE_POINT_WIDTH * 4 + POINT_COORDINATE_WIDTH]
                 .copy_from_slice(&row[..POINT_COORDINATE_WIDTH]);
             output[AFFINE_POINT_WIDTH * 4 + POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH * 5]
                 .copy_from_slice(&row[AFFINE_POINT_WIDTH..PROJECTIVE_POINT_WIDTH]);
-            
+
             outputs.push(output);
         }
-        
+
         PublicInputs { proofs, outputs }
     }
 
@@ -199,4 +207,3 @@ impl Prover for CDSProver {
         &self.options
     }
 }
-

@@ -67,8 +67,10 @@ pub fn get_example(num_signatures: usize) -> TallyExample {
 #[derive(Clone, Debug)]
 pub struct TallyExample {
     options: ProofOptions,
-    encrypted_votes: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
-    tally_result: u64,
+    /// Encrypted votes of registered voters
+    pub encrypted_votes: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    /// Tally result
+    pub tally_result: u64,
 }
 
 impl TallyExample {
@@ -183,7 +185,7 @@ impl TallyExample {
 
 #[inline]
 /// Naively verify the tally result
-pub(crate) fn naive_verify_tally_result(
+pub fn naive_verify_tally_result(
     encrypted_votes: &Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
     tally_result: u64,
 ) -> bool {

@@ -53,7 +53,17 @@ mod tests;
 // ================================================================================================
 
 /// Outputs a new `SchnorrExample` with `num_signatures` signatures on random messages.
-pub fn get_example(num_proofs: usize) -> CDSExample {
+pub fn get_example(
+    num_proofs: usize,
+) -> (
+    CDSExample,
+    (
+        Vec<ProjectivePoint>,
+        Vec<ProjectivePoint>,
+        Vec<[Scalar; PROOF_NUM_SCALARS]>,
+        Vec<[ProjectivePoint; PROOF_NUM_POINTS]>,
+    ),
+) {
     CDSExample::new(
         ProofOptions::new(
             42,
@@ -81,7 +91,18 @@ pub struct CDSExample {
 
 impl CDSExample {
     /// Outputs a new `SchnorrExample` with `num_signatures` signatures on random messages.
-    pub fn new(options: ProofOptions, num_proofs: usize) -> CDSExample {
+    pub fn new(
+        options: ProofOptions,
+        num_proofs: usize,
+    ) -> (
+        CDSExample,
+        (
+            Vec<ProjectivePoint>,
+            Vec<ProjectivePoint>,
+            Vec<[Scalar; PROOF_NUM_SCALARS]>,
+            Vec<[ProjectivePoint; PROOF_NUM_POINTS]>,
+        ),
+    ) {
         let mut rng = OsRng;
         let mut secret_keys = Vec::with_capacity(num_proofs);
         let mut public_keys = Vec::with_capacity(num_proofs);
@@ -147,6 +168,13 @@ impl CDSExample {
             now.elapsed().as_millis(),
         );
 
+        let extra_data = (
+            public_keys.clone(),
+            encrypted_votes.clone(),
+            proof_scalars.clone(),
+            proof_points.clone(),
+        );
+
         let public_keys = public_keys
             .into_iter()
             .map(|p| projective_to_elements(p))
@@ -162,13 +190,16 @@ impl CDSExample {
             .map(|ps| concat_proof_points(ps))
             .collect::<Vec<[BaseElement; AFFINE_POINT_WIDTH * PROOF_NUM_POINTS]>>();
 
-        CDSExample {
-            options,
-            public_keys,
-            encrypted_votes,
-            proof_points,
-            proof_scalars,
-        }
+        (
+            CDSExample {
+                options,
+                public_keys,
+                encrypted_votes,
+                proof_points,
+                proof_scalars,
+            },
+            extra_data,
+        )
     }
 
     /// Proves the validity of a sequence of Schnorr signatures
@@ -323,7 +354,7 @@ pub(crate) fn encrypt_votes_and_compute_proofs(
 }
 
 /// Naively varify CDS proofs
-pub(crate) fn naive_verify_cds_proofs(
+pub fn naive_verify_cds_proofs(
     public_keys: &[ProjectivePoint],
     encrypted_votes: &[ProjectivePoint],
     proof_scalars: &[[Scalar; PROOF_NUM_SCALARS]],

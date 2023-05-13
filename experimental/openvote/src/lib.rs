@@ -23,11 +23,10 @@ extern crate alloc;
 /// The CDS sub-AIR program
 pub mod cds;
 /// The Merkle proof of membership sub-AIR program
-pub mod merkle_proof;
+pub mod merkle;
 /// The Schnorr signature sub-AIR program
 pub mod schnorr;
 /// The vote tallying sub-AIR program
 pub mod tally;
 /// Utility module
 pub mod utils;
-

@@ -6,7 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use openvote::schnorr::get_example;
+use openvote::schnorr::{get_example, naive_verify_signatures};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::time::Duration;
 
@@ -27,6 +27,10 @@ fn schnorr_bench(c: &mut Criterion) {
         let proof = schnorr.prove();
 
         println!("Proof size for schnorr/prove/{}: {} bytes", size, proof.to_bytes().len());
+
+        group.bench_function(BenchmarkId::new("naive", size), |bench| {
+            bench.iter(|| naive_verify_signatures(&schnorr.messages, &schnorr.signatures));
+        });
 
         group.bench_function(BenchmarkId::new("verify", size), |bench| {
             bench.iter(|| schnorr.verify(proof.clone()));

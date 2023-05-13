@@ -18,7 +18,7 @@ fn cds_bench(c: &mut Criterion) {
     group.measurement_time(Duration::from_secs(400));
 
     for &size in SIZES.iter() {
-        let cds = get_example(size);
+        let (cds, (public_keys, encrypted_votes, proof_scalars, proof_points)) = get_example(size);
         
         group.bench_function(BenchmarkId::new("prove", size), |bench| {
             bench.iter(|| cds.prove());
@@ -28,11 +28,11 @@ fn cds_bench(c: &mut Criterion) {
 
         println!("Proof size for cds/prove/{}: {} bytes", size, proof.to_bytes().len());
 
-        // group.bench_function(BenchmarkId::new("naive", size), |bench| {
-        //     bench.iter(|| naive_verify_cds_proofs(
-        //         pub_inputs., blinding_keys, encrypted_votes, proof_scalars, proof_points
-        //     ));
-        // });
+        group.bench_function(BenchmarkId::new("naive", size), |bench| {
+            bench.iter(|| naive_verify_cds_proofs(
+                &public_keys, &encrypted_votes, &proof_scalars, &proof_points
+            ));
+        });
 
         group.bench_function(BenchmarkId::new("verify", size), |bench| {
             bench.iter(|| cds.verify(proof.clone(), pub_inputs.clone()));

@@ -138,11 +138,8 @@ impl Air for CDSAir {
     }
 
     fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {
-        let (
-            proof_points_a,
-            proof_points_b,
-            c_diff_value
-        ) = transpose_proof_points(&self.proofs, &self.outputs);
+        let (proof_points_a, proof_points_b, c_diff_value) =
+            transpose_proof_points(&self.proofs, &self.outputs);
 
         // Assert starting and ending values
         let mut assertions = vec![];
@@ -792,7 +789,11 @@ pub(crate) fn transition_constraint_degrees() -> Vec<TransitionConstraintDegree>
 fn transpose_proof_points(
     proofs: &Vec<[BaseElement; AFFINE_POINT_WIDTH * 6]>,
     outputs: &Vec<[BaseElement; AFFINE_POINT_WIDTH * 5]>,
-) -> (Vec<Vec<BaseElement>>, Vec<Vec<BaseElement>>, Vec<Vec<BaseElement>>) {
+) -> (
+    Vec<Vec<BaseElement>>,
+    Vec<Vec<BaseElement>>,
+    Vec<Vec<BaseElement>>,
+) {
     let n = proofs.len() * 2;
     let mut result1 = vec![Vec::with_capacity(n); AFFINE_POINT_WIDTH];
     let mut result2 = vec![Vec::with_capacity(n); AFFINE_POINT_WIDTH];
@@ -803,12 +804,15 @@ fn transpose_proof_points(
         // a1, a2
         for i in 0..AFFINE_POINT_WIDTH {
             result1[i].push(proof_points[i] + output[i]);
-            result1[i].push(proof_points[i + 2 * AFFINE_POINT_WIDTH] + output[i + 2 * AFFINE_POINT_WIDTH])
+            result1[i]
+                .push(proof_points[i + 2 * AFFINE_POINT_WIDTH] + output[i + 2 * AFFINE_POINT_WIDTH])
         }
         // b1, b2
         for i in 0..AFFINE_POINT_WIDTH {
             result2[i].push(proof_points[i + AFFINE_POINT_WIDTH] + output[i + AFFINE_POINT_WIDTH]);
-            result2[i].push(proof_points[i + 3 * AFFINE_POINT_WIDTH] + output[i + 3 * AFFINE_POINT_WIDTH]);
+            result2[i].push(
+                proof_points[i + 3 * AFFINE_POINT_WIDTH] + output[i + 3 * AFFINE_POINT_WIDTH],
+            );
         }
         // x and z coordinates of (c - d1 - d2) * pk
         for i in 0..AFFINE_POINT_WIDTH {

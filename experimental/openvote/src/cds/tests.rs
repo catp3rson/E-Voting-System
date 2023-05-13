@@ -10,28 +10,28 @@ use winterfell::{FieldExtension, HashFunction, ProofOptions};
 
 #[test]
 fn cds_test_basic_proof_verification() {
-    let cds = super::CDSExample::new(build_options(1), 2);
+    let cds = super::CDSExample::new(build_options(1), 2).0;
     let (pub_inputs, proof) = cds.prove();
     assert!(cds.verify(proof, pub_inputs).is_ok());
 }
 
 #[test]
 fn cds_test_basic_proof_verification_quadratic_extension() {
-    let cds = Box::new(super::CDSExample::new(build_options(2), 2));
+    let cds = Box::new(super::CDSExample::new(build_options(2), 2).0);
     let (pub_inputs, proof) = cds.prove();
     assert!(cds.verify(proof, pub_inputs).is_ok());
 }
 
 #[test]
 fn cds_test_basic_proof_verification_cubic_extension() {
-    let cds = Box::new(super::CDSExample::new(build_options(3), 2));
+    let cds = Box::new(super::CDSExample::new(build_options(3), 2).0);
     let (pub_inputs, proof) = cds.prove();
     assert!(cds.verify(proof, pub_inputs).is_ok());
 }
 
 #[test]
 fn cds_test_basic_proof_verification_fail() {
-    let cds = super::CDSExample::new(build_options(1), 2);
+    let cds = super::CDSExample::new(build_options(1), 2).0;
     let (pub_inputs, proof) = cds.prove();
     let verified = cds.verify_with_wrong_inputs(proof, pub_inputs);
     assert!(verified.is_err());

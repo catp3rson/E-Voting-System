@@ -6,7 +6,7 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use openvote::tally::get_example;
+use openvote::tally::{get_example, naive_verify_tally_result};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::time::Duration;
 
@@ -27,6 +27,10 @@ fn tally_bench(c: &mut Criterion) {
         let proof = tally.prove();
 
         println!("Proof size for tally/prove/{}: {} bytes", size, proof.to_bytes().len());
+
+        group.bench_function(BenchmarkId::new("naive", size), |bench| {
+            bench.iter(|| naive_verify_tally_result(&tally.encrypted_votes, tally.tally_result));
+        });
 
         group.bench_function(BenchmarkId::new("verify", size), |bench| {
             bench.iter(|| tally.verify(proof.clone()));
