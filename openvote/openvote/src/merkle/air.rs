@@ -4,19 +4,12 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
-use super::constants::{MERKLE_CYCLE_LENGTH, TRACE_WIDTH};
+use super::constants::*;
 use super::{BaseElement, FieldElement};
-use crate::{
-    schnorr::constants::{AFFINE_POINT_WIDTH, POINT_COORDINATE_WIDTH},
-    utils::{
-        field, is_binary, not,
-        rescue::{self, RATE_WIDTH, STATE_WIDTH},
-        EvaluationResult,
-    },
-};
-use rescue::HASH_CYCLE_LENGTH;
+use crate::utils::{field, is_binary, not, rescue, EvaluationResult};
 use winterfell::{
-    Air, AirContext, Assertion, ByteWriter, EvaluationFrame, ProofOptions, Serializable, TraceInfo,
+    Air, AirContext, Assertion, ByteReader, ByteWriter, Deserializable, DeserializationError,
+    EvaluationFrame, ProofOptions, Serializable, SliceReader, TraceInfo,
     TransitionConstraintDegree,
 };
 
@@ -24,19 +17,48 @@ use winterfell::{
 // ================================================================================================
 
 pub struct PublicInputs {
-    pub tree_root: [BaseElement; RATE_WIDTH],
+    pub tree_root: [BaseElement; DIGEST_SIZE],
     pub voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
 }
 
 impl Serializable for PublicInputs {
     fn write_into<W: ByteWriter>(&self, target: &mut W) {
-        target.write(&self.tree_root[..]);
+        Serializable::write_batch_into(&self.tree_root, target);
+        target.write_u32(self.voting_keys.len() as u32);
+        for voting_key in self.voting_keys.iter() {
+            Serializable::write_batch_into(voting_key, target);
+        }
+    }
+}
+
+impl Deserializable for PublicInputs {
+    fn read_from<R: ByteReader>(source: &mut R) -> Result<Self, DeserializationError> {
+        let mut tree_root = [BaseElement::ZERO; DIGEST_SIZE];
+        tree_root.copy_from_slice(&BaseElement::read_batch_from(source, DIGEST_SIZE)?);
+        let num_voters = source.read_u32()? as usize;
+        let mut voting_keys = Vec::with_capacity(num_voters);
+        let mut voting_key = [BaseElement::ZERO; AFFINE_POINT_WIDTH];
+        for _ in 0..num_voters {
+            voting_key.copy_from_slice(&BaseElement::read_batch_from(source, AFFINE_POINT_WIDTH)?);
+            voting_keys.push(voting_key);
+        }
+        Ok(Self {
+            tree_root,
+            voting_keys,
+        })
+    }
+}
+
+impl PublicInputs {
+    pub fn from_bytes(source: &[u8]) -> Result<Self, DeserializationError> {
+        let mut source = SliceReader::new(source);
+        Self::read_from(&mut source)
     }
 }
 
 pub struct MerkleAir {
     context: AirContext<BaseElement>,
-    tree_root: [BaseElement; RATE_WIDTH],
+    tree_root: [BaseElement; DIGEST_SIZE],
     voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
 }
 
@@ -79,9 +101,9 @@ impl Air for MerkleAir {
 
         // when hash_flag = 1, constraints for Rescue round are enforced
         rescue::enforce_round(
-            &mut result[1..STATE_WIDTH + 1],
-            &current[1..STATE_WIDTH + 1],
-            &next[1..STATE_WIDTH + 1],
+            &mut result[1..HASH_STATE_WIDTH + 1],
+            &current[1..HASH_STATE_WIDTH + 1],
+            &next[1..HASH_STATE_WIDTH + 1],
             ark,
             cycle_mask * hash_flag,
         );
@@ -95,18 +117,18 @@ impl Air for MerkleAir {
         result.agg_constraint(0, hash_init_flag, is_binary(hash_index_bit));
 
         // if index bit = 0, accumulated hash remains unchanged.
-        field::enforce_copy::<RATE_WIDTH, E>(
-            &mut result[1..RATE_WIDTH + 1],
-            &current[1..RATE_WIDTH + 1],
-            &next[1..RATE_WIDTH + 1],
+        field::enforce_copy::<HASH_RATE_WIDTH, E>(
+            &mut result[1..HASH_RATE_WIDTH + 1],
+            &current[1..HASH_RATE_WIDTH + 1],
+            &next[1..HASH_RATE_WIDTH + 1],
             hash_init_flag * not(hash_index_bit),
         );
 
         // if index bit = 1, accumulated hash is stored in capacity registers.
-        field::enforce_copy::<RATE_WIDTH, E>(
-            &mut result[RATE_WIDTH + 1..STATE_WIDTH + 1],
-            &current[1..RATE_WIDTH + 1],
-            &next[RATE_WIDTH + 1..STATE_WIDTH + 1],
+        field::enforce_copy::<HASH_RATE_WIDTH, E>(
+            &mut result[HASH_RATE_WIDTH + 1..HASH_STATE_WIDTH + 1],
+            &current[1..HASH_RATE_WIDTH + 1],
+            &next[HASH_RATE_WIDTH + 1..HASH_STATE_WIDTH + 1],
             hash_init_flag * hash_index_bit,
         );
     }
@@ -124,12 +146,12 @@ impl Air for MerkleAir {
                     voting_key[i],
                 ));
                 assertions.push(Assertion::single(
-                    i + RATE_WIDTH + 1,
+                    i + HASH_RATE_WIDTH + 1,
                     key_index * MERKLE_CYCLE_LENGTH + HASH_CYCLE_LENGTH,
                     voting_key[i + POINT_COORDINATE_WIDTH],
                 ));
             }
-            for i in POINT_COORDINATE_WIDTH + 1..STATE_WIDTH + 1 {
+            for i in POINT_COORDINATE_WIDTH + 1..HASH_STATE_WIDTH + 1 {
                 assertions.push(Assertion::single(
                     i,
                     key_index * MERKLE_CYCLE_LENGTH,
@@ -146,7 +168,7 @@ impl Air for MerkleAir {
         // END OF TRACE
         let last_cycle_step = MERKLE_CYCLE_LENGTH - 1;
 
-        for i in 0..RATE_WIDTH {
+        for i in 0..HASH_RATE_WIDTH {
             assertions.push(Assertion::periodic(
                 i + 1,
                 last_cycle_step,

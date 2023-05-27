@@ -27,7 +27,7 @@ pub const STATE_WIDTH: usize = 14;
 pub const RATE_WIDTH: usize = 7;
 
 /// Seven elements (56-bytes) are returned as digest.
-const DIGEST_SIZE: usize = 7;
+pub const DIGEST_SIZE: usize = 7;
 
 /// The number of rounds is set to 7 to provide 128-bit security level with 40% security margin;
 /// computed using algorithm 7 from <https://eprint.iacr.org/2020/1143.pdf>

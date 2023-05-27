@@ -1,6 +1,7 @@
 use super::constants::*;
+use super::PublicInputs;
+use super::TallyAir;
 use crate::utils::ecc;
-use ecc::POINT_COORDINATE_WIDTH;
 use winterfell::{
     math::{
         curves::curve_f63::{AffinePoint, Scalar},
@@ -9,12 +10,6 @@ use winterfell::{
     },
     ProofOptions, Prover, TraceTable,
 };
-
-#[cfg(feature = "concurrent")]
-use winterfell::iterators::*;
-
-use super::PublicInputs;
-use super::TallyAir;
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
@@ -26,14 +21,14 @@ pub struct TallyProver {
     options: ProofOptions,
     encrypted_votes: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
     // number of "yes" votes
-    tally_result: u64,
+    tally_result: u32,
 }
 
 impl TallyProver {
     pub fn new(
         options: ProofOptions,
         encrypted_votes: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
-        tally_result: u64,
+        tally_result: u32,
     ) -> Self {
         Self {
             options,
@@ -45,14 +40,14 @@ impl TallyProver {
     pub fn build_trace(&self) -> TraceTable<BaseElement> {
         // the number of valid encrypted votes is supposed
         // to be a power of two (checked in cds)
-        let num_votes = self.encrypted_votes.len() as u64;
+        let num_votes = self.encrypted_votes.len() as u32;
         debug_assert!(num_votes >= 2, "Number of proofs cannot be less than 2.");
         debug_assert!(
             num_votes.is_power_of_two(),
             "Number of valid encrypted voted should be a power of two."
         );
         debug_assert!(
-            num_votes < BaseElement::MODULUS,
+            (num_votes as u64) < BaseElement::MODULUS,
             "Number of votes cannot be greater than base field modulus."
         );
         debug_assert!(self.tally_result <= num_votes, "Invalid tally result");
@@ -72,7 +67,7 @@ impl TallyProver {
                 }
             },
             |step, state| {
-                if (step as u64) < num_votes - 2 {
+                if (step as u32) < num_votes - 2 {
                     ecc::compute_add_mixed(state, &self.encrypted_votes[step]);
                 } else {
                     ecc::compute_add_mixed(state, &self.encrypted_votes[step]);

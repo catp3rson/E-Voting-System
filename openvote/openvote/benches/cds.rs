@@ -10,7 +10,7 @@ use openvote::cds::{get_example, naive_verify_cds_proofs};
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use std::time::Duration;
 
-const SIZES: [usize; 5] = [8, 16, 32, 64, 128];
+const SIZES: [usize; 1] = [8];//, 16, 32, 64, 128];
 
 fn cds_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("cds");

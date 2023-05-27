@@ -1,0 +1,11 @@
+group,function,value,throughput_num,throughput_type,sample_measured_value,unit,iteration_count
+cds,verify,32,,,7404243560.0,ns,128
+cds,verify,32,,,14722662454.0,ns,256
+cds,verify,32,,,22011374108.0,ns,384
+cds,verify,32,,,29427586768.0,ns,512
+cds,verify,32,,,36437193848.0,ns,640
+cds,verify,32,,,43651954376.0,ns,768
+cds,verify,32,,,50828436217.0,ns,896
+cds,verify,32,,,58716764101.0,ns,1024
+cds,verify,32,,,65204906058.0,ns,1152
+cds,verify,32,,,72110653921.0,ns,1280

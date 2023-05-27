@@ -6,10 +6,13 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use crate::utils::rescue::RATE_WIDTH;
-
-pub(crate) use super::ecc::{AFFINE_POINT_WIDTH, POINT_COORDINATE_WIDTH, PROJECTIVE_POINT_WIDTH};
-pub(crate) use super::rescue::{HASH_CYCLE_LENGTH, HASH_CYCLE_MASK, NUM_HASH_ROUNDS, STATE_WIDTH};
+pub(crate) use super::ecc::{
+    AFFINE_POINT_WIDTH, GENERATOR, POINT_COORDINATE_WIDTH, PROJECTIVE_POINT_WIDTH,
+};
+pub(crate) use super::rescue::{
+    HASH_CYCLE_LENGTH, HASH_CYCLE_MASK, NUM_HASH_ROUNDS, RATE_WIDTH as HASH_RATE_WIDTH,
+    STATE_WIDTH as HASH_STATE_WIDTH,
+};
 
 // CONSTANTS
 // ================================================================================================
@@ -37,7 +40,7 @@ pub const SCALAR_MUL_LENGTH: usize = 510;
 // 5 points in projective coordinates, 3 binary decompositions,
 // 4 field elements, 1 hash state
 /// Layout: | c * vk | c_bits | r1 * g | r1 * bk | r1_bits | d1 * vk | d1 * (ev + G) | d1_bits | c0 | c1 | c2 | c3 | hash |
-pub const TRACE_WIDTH: usize = 5 * PROJECTIVE_POINT_WIDTH + 3 + 4 + STATE_WIDTH;
+pub const TRACE_WIDTH: usize = 5 * PROJECTIVE_POINT_WIDTH + 3 + 4 + HASH_STATE_WIDTH;
 
 /// Total number of steps in the trace for a single cds proof
 pub const CDS_CYCLE_LENGTH: usize = 1024;
@@ -53,4 +56,4 @@ pub const PROOF_NUM_SCALARS: usize = 4;
 
 /// Length of hash message to calculate challenge
 /// [i, vk, ev, a1, b1, a2, b2] (i is voter index)
-pub const HASH_MSG_LENGTH: usize = NUM_HASH_ITER * RATE_WIDTH;
+pub const HASH_MSG_LENGTH: usize = NUM_HASH_ITER * HASH_RATE_WIDTH;

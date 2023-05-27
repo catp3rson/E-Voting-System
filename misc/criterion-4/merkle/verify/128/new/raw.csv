@@ -1,0 +1,11 @@
+group,function,value,throughput_num,throughput_type,sample_measured_value,unit,iteration_count
+merkle,verify,128,,,1822910362.0,ns,128
+merkle,verify,128,,,3640844175.0,ns,256
+merkle,verify,128,,,5550566564.0,ns,384
+merkle,verify,128,,,7293348238.0,ns,512
+merkle,verify,128,,,9217170847.0,ns,640
+merkle,verify,128,,,10933529179.0,ns,768
+merkle,verify,128,,,12758818275.0,ns,896
+merkle,verify,128,,,14584784666.0,ns,1024
+merkle,verify,128,,,16400669283.0,ns,1152
+merkle,verify,128,,,18217311393.0,ns,1280

@@ -9,10 +9,16 @@
 pub(crate) use super::ecc::{
     AFFINE_POINT_WIDTH, GENERATOR, POINT_COORDINATE_WIDTH, PROJECTIVE_POINT_WIDTH,
 };
-pub(crate) use super::rescue::{HASH_CYCLE_LENGTH, HASH_CYCLE_MASK, NUM_HASH_ROUNDS, STATE_WIDTH};
+pub(crate) use super::rescue::{
+    HASH_CYCLE_LENGTH, HASH_CYCLE_MASK, NUM_HASH_ROUNDS, RATE_WIDTH as HASH_RATE_WIDTH,
+    STATE_WIDTH as HASH_STATE_WIDTH,
+};
 
 // CONSTANTS
 // ================================================================================================
+
+// Max message length (in BaseElement) of a Schnorr signature
+pub const MSG_LENGTH: usize = AFFINE_POINT_WIDTH * 2 + 4;
 
 // Rescue constants
 
@@ -34,6 +40,6 @@ pub const SCALAR_MUL_LENGTH: usize = 510;
 
 /// Total number of registers in the trace
 // 2 points in projective coordinates, 2 binary decompositions, 4 field elements, 1 hash state
-pub const TRACE_WIDTH: usize = 2 * PROJECTIVE_POINT_WIDTH + 2 + 4 + STATE_WIDTH;
+pub const TRACE_WIDTH: usize = 2 * PROJECTIVE_POINT_WIDTH + 2 + 4 + HASH_STATE_WIDTH;
 /// Total number of steps in the trace for a single signature
 pub const SIG_CYCLE_LENGTH: usize = 512;

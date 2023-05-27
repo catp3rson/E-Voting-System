@@ -4,15 +4,14 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
-use crate::schnorr::constants::{AFFINE_POINT_WIDTH, POINT_COORDINATE_WIDTH};
-use crate::utils::rescue::{self, RATE_WIDTH};
-use crate::utils::rescue::{Hash, Rescue63};
+use self::constants::*;
+use crate::utils::rescue::{self, Hash, Rescue63};
 use core::usize;
 use log::debug;
 use rand_core::{OsRng, RngCore};
 use std::time::Instant;
-use winterfell::crypto::Hasher;
 use winterfell::{
+    crypto::Hasher,
     math::{fields::f63::BaseElement, log2, FieldElement},
     FieldExtension, HashFunction, ProofOptions, Prover, StarkProof, Trace, TraceTable,
     VerifierError,
@@ -22,21 +21,16 @@ pub(crate) mod constants;
 mod trace;
 
 mod air;
-use air::{MerkleAir, PublicInputs};
+pub(crate) use air::{MerkleAir, PublicInputs};
 
 mod prover;
 pub(crate) use prover::MerkleProver;
-
-use self::constants::TREE_DEPTH;
 
 #[cfg(test)]
 mod tests;
 
 /// Outputs a new `MerkleExample` with `num_keys` Merkle proofs of membership on random public keys.
-pub fn get_example(
-    num_keys: usize,
-) -> MerkleExample
-{
+pub fn get_example(num_keys: usize) -> MerkleExample {
     MerkleExample::new(
         ProofOptions::new(
             42,
@@ -56,11 +50,11 @@ pub fn get_example(
 pub struct MerkleExample {
     options: ProofOptions,
     /// Root of Merkle tree
-    pub tree_root: [BaseElement; RATE_WIDTH],
+    pub tree_root: [BaseElement; DIGEST_SIZE],
     /// List of public keys of which memberships need to be proved
     pub voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
     /// Siblings on the path from public key's leaf to root
-    pub branches: Vec<[BaseElement; TREE_DEPTH * RATE_WIDTH]>,
+    pub branches: Vec<[BaseElement; TREE_DEPTH * DIGEST_SIZE]>,
     /// Hash index to determine the path
     pub hash_indices: Vec<usize>,
 }
@@ -68,11 +62,7 @@ pub struct MerkleExample {
 impl MerkleExample {
     /// create random public keys and a Merkle tree that contains
     /// these keys
-    pub fn new(
-        options: ProofOptions,
-        num_keys: usize,
-    ) -> MerkleExample
-    {
+    pub fn new(options: ProofOptions, num_keys: usize) -> MerkleExample {
         let (tree_root, voting_keys, branches, hash_indices) = build_merkle_tree(num_keys);
 
         // verify the Merkle proofs
@@ -158,7 +148,7 @@ impl MerkleExample {
     #[cfg(test)]
     fn verify_with_wrong_root(&self, proof: StarkProof) -> Result<(), VerifierError> {
         let mut rng = OsRng;
-        let fault_position = (rng.next_u32() as usize) % RATE_WIDTH;
+        let fault_position = (rng.next_u32() as usize) % DIGEST_SIZE;
         let mut wrong_tree_root = self.tree_root.clone();
         wrong_tree_root[fault_position] += BaseElement::ONE;
         let pub_inputs = PublicInputs {
@@ -176,24 +166,35 @@ impl MerkleExample {
 fn build_merkle_tree(
     num_keys: usize,
 ) -> (
-    [BaseElement; RATE_WIDTH],
+    [BaseElement; DIGEST_SIZE],
     Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
-    Vec<[BaseElement; TREE_DEPTH * RATE_WIDTH]>,
+    Vec<[BaseElement; TREE_DEPTH * DIGEST_SIZE]>,
     Vec<usize>,
 ) {
-    let num_leaves = usize::pow(2, TREE_DEPTH as u32);
-    let mut leaves = vec![[BaseElement::ZERO; RATE_WIDTH]; num_leaves];
-    let mut rng = OsRng;
-
     let voting_keys = (0..num_keys)
         .into_iter()
         .map(|_| random_array::<AFFINE_POINT_WIDTH>())
         .collect::<Vec<[BaseElement; AFFINE_POINT_WIDTH]>>();
+    let (tree_root, branches, hash_indices) = build_merkle_tree_from(&voting_keys);
+    (tree_root, voting_keys, branches, hash_indices)
+}
+
+pub(crate) fn build_merkle_tree_from(
+    voting_keys: &Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+) -> (
+    [BaseElement; DIGEST_SIZE],
+    Vec<[BaseElement; TREE_DEPTH * DIGEST_SIZE]>,
+    Vec<usize>,
+) {
+    let num_keys = voting_keys.len();
+    let mut rng = OsRng;
+    let num_leaves = usize::pow(2, TREE_DEPTH as u32);
+    let mut leaves = vec![[BaseElement::ZERO; DIGEST_SIZE]; num_leaves];
 
     let key_hashes = voting_keys
         .iter()
         .map(|voting_key| hash_voting_key(voting_key))
-        .collect::<Vec<[BaseElement; RATE_WIDTH]>>();
+        .collect::<Vec<[BaseElement; DIGEST_SIZE]>>();
 
     let mut hash_indices = Vec::with_capacity(num_keys);
     while hash_indices.len() < num_keys {
@@ -206,11 +207,11 @@ fn build_merkle_tree(
 
     for index in 0..num_leaves {
         if !hash_indices.contains(&index) {
-            leaves[index] = random_array::<RATE_WIDTH>();
+            leaves[index] = random_array::<DIGEST_SIZE>();
         }
     }
 
-    let mut branches = vec![[BaseElement::ZERO; TREE_DEPTH * RATE_WIDTH]; num_keys];
+    let mut branches = vec![[BaseElement::ZERO; TREE_DEPTH * DIGEST_SIZE]; num_keys];
 
     for (&hash_index, key_hash) in hash_indices.iter().zip(key_hashes.into_iter()) {
         leaves[hash_index] = key_hash;
@@ -218,48 +219,54 @@ fn build_merkle_tree(
 
     let tree_root = calculate_merkle_proof(&leaves, &mut branches, &hash_indices, 0);
 
-    (tree_root, voting_keys, branches, hash_indices)
+    (tree_root, branches, hash_indices)
 }
 
 /// Naively verify Merkle proofs of membership
 pub fn naive_verify_merkle_proofs(
-    tree_root: &[BaseElement; RATE_WIDTH],
+    tree_root: &[BaseElement; DIGEST_SIZE],
     voting_keys: &Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
-    branches: &Vec<[BaseElement; TREE_DEPTH * RATE_WIDTH]>,
+    branches: &Vec<[BaseElement; TREE_DEPTH * DIGEST_SIZE]>,
     hash_indices: &Vec<usize>,
 ) -> bool {
     for i in 0..voting_keys.len() {
-        let voting_key = voting_keys[i];
-        let branch = branches[i];
-        let hash_index = hash_indices[i];
-        let mut h = hash_voting_key(&voting_key);
-
-        for j in 0..TREE_DEPTH {
-            let hash_bit_index = (hash_index >> j) & 1;
-            let mut branch_node = [BaseElement::ZERO; RATE_WIDTH];
-            branch_node.copy_from_slice(&branch[j * RATE_WIDTH..(j + 1) * RATE_WIDTH]);
-
-            if hash_bit_index == 0 {
-                h = merge_hash(&h, &branch_node);
-            } else {
-                h = merge_hash(&branch_node, &h);
-            }
-        }
-
-        if h != *tree_root {
+        if !verify_merlke_proof(tree_root, &voting_keys[i], &branches[i], hash_indices[i]) {
             return false;
         }
     }
-
     true
 }
 
+/// Verify a Merkle proof
+#[inline]
+pub(crate) fn verify_merlke_proof(
+    tree_root: &[BaseElement; DIGEST_SIZE],
+    voting_key: &[BaseElement; AFFINE_POINT_WIDTH],
+    branch: &[BaseElement; TREE_DEPTH * DIGEST_SIZE],
+    hash_index: usize,
+) -> bool {
+    let mut h = hash_voting_key(&voting_key);
+
+    for i in 0..TREE_DEPTH {
+        let hash_bit_index = (hash_index >> i) & 1;
+        let mut branch_node = [BaseElement::ZERO; DIGEST_SIZE];
+        branch_node.copy_from_slice(&branch[i * DIGEST_SIZE..(i + 1) * DIGEST_SIZE]);
+        if hash_bit_index == 0 {
+            h = merge_hash(&h, &branch_node);
+        } else {
+            h = merge_hash(&branch_node, &h);
+        }
+    }
+
+    h == *tree_root
+}
+
 fn calculate_merkle_proof(
-    tree: &[[BaseElement; RATE_WIDTH]],
-    branches: &mut Vec<[BaseElement; TREE_DEPTH * RATE_WIDTH]>,
+    tree: &[[BaseElement; DIGEST_SIZE]],
+    branches: &mut Vec<[BaseElement; TREE_DEPTH * DIGEST_SIZE]>,
     hash_indices: &Vec<usize>,
     branch_index: usize,
-) -> [BaseElement; RATE_WIDTH] {
+) -> [BaseElement; DIGEST_SIZE] {
     if tree.len() == 1 {
         return tree[0];
     }
@@ -283,7 +290,7 @@ fn calculate_merkle_proof(
         let hash_index = hash_index >> branch_node_index;
         if hash_index >> 1 == branch_index {
             let bit_index = hash_index & 1;
-            branch[branch_node_index * RATE_WIDTH..(branch_node_index + 1) * RATE_WIDTH]
+            branch[branch_node_index * DIGEST_SIZE..(branch_node_index + 1) * DIGEST_SIZE]
                 .copy_from_slice(if bit_index == 0 { &right } else { &left });
         }
     }
@@ -302,8 +309,8 @@ fn random_array<const NREGS: usize>() -> [BaseElement; NREGS] {
     point
 }
 
-fn hash_voting_key(voting_key: &[BaseElement; AFFINE_POINT_WIDTH]) -> [BaseElement; RATE_WIDTH] {
-    let mut hash_message = [BaseElement::ZERO; RATE_WIDTH];
+fn hash_voting_key(voting_key: &[BaseElement; AFFINE_POINT_WIDTH]) -> [BaseElement; DIGEST_SIZE] {
+    let mut hash_message = [BaseElement::ZERO; DIGEST_SIZE];
     hash_message[..POINT_COORDINATE_WIDTH].copy_from_slice(&voting_key[..POINT_COORDINATE_WIDTH]);
     let mut h = Rescue63::digest(&hash_message);
     let message_chunk = rescue::Hash::new(
@@ -321,9 +328,9 @@ fn hash_voting_key(voting_key: &[BaseElement; AFFINE_POINT_WIDTH]) -> [BaseEleme
 }
 
 fn merge_hash(
-    left: &[BaseElement; RATE_WIDTH],
-    right: &[BaseElement; RATE_WIDTH],
-) -> [BaseElement; RATE_WIDTH] {
+    left: &[BaseElement; DIGEST_SIZE],
+    right: &[BaseElement; DIGEST_SIZE],
+) -> [BaseElement; DIGEST_SIZE] {
     let h_left = Hash::new(
         left[0], left[1], left[2], left[3], left[4], left[5], left[6],
     );

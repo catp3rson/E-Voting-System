@@ -3,36 +3,31 @@
 // This source code is licensed under the MIT license found in the
 // LICENSE file in the root directory of this source tree.
 
+use super::{
+    constants::*,
+    trace::{init_merkle_verification_state, update_merkle_verification_state},
+    BaseElement, FieldElement, MerkleAir, ProofOptions, Prover, PublicInputs, TraceTable,
+};
+
 #[cfg(feature = "concurrent")]
 use winterfell::iterators::*;
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 
-use crate::{
-    schnorr::constants::{AFFINE_POINT_WIDTH, POINT_COORDINATE_WIDTH},
-    utils::rescue::RATE_WIDTH,
-};
-
-use super::{
-    constants::{MERKLE_CYCLE_LENGTH, TRACE_WIDTH, TREE_DEPTH},
-    trace::{init_merkle_verification_state, update_merkle_verification_state},
-    BaseElement, FieldElement, MerkleAir, ProofOptions, Prover, PublicInputs, TraceTable,
-};
-
 // MERKLE PROVER
 // ================================================================================================
 
 pub struct MerkleProver {
     options: ProofOptions,
-    tree_root: [BaseElement; RATE_WIDTH],
+    tree_root: [BaseElement; DIGEST_SIZE],
     voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
 }
 
 impl MerkleProver {
     pub fn new(
         options: ProofOptions,
-        tree_root: [BaseElement; RATE_WIDTH],
+        tree_root: [BaseElement; DIGEST_SIZE],
         voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
     ) -> Self {
         Self {
@@ -46,7 +41,7 @@ impl MerkleProver {
         &self,
         // contains the siblings of the nodes on the path
         // from root to corresponding public key
-        branches: Vec<[BaseElement; TREE_DEPTH * RATE_WIDTH]>,
+        branches: Vec<[BaseElement; TREE_DEPTH * DIGEST_SIZE]>,
         hash_indices: Vec<usize>,
     ) -> TraceTable<BaseElement> {
         debug_assert!(
@@ -64,10 +59,10 @@ impl MerkleProver {
 
                 let hash_index = hash_indices[i] << 1;
                 let voting_key = self.voting_keys[i];
-                let mut hash_message = [BaseElement::ZERO; (TREE_DEPTH + 1) * RATE_WIDTH];
+                let mut hash_message = [BaseElement::ZERO; (TREE_DEPTH + 1) * DIGEST_SIZE];
                 hash_message[..POINT_COORDINATE_WIDTH]
                     .copy_from_slice(&voting_key[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH]);
-                hash_message[RATE_WIDTH..].copy_from_slice(&branches[i]);
+                hash_message[DIGEST_SIZE..].copy_from_slice(&branches[i]);
 
                 merkle_trace.fill(
                     |state| {

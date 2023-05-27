@@ -6,10 +6,11 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use super::constants::*;
+use super::{constants::*, prepare_message};
 use super::{ecc, field, rescue};
 use bitvec::{order::Lsb0, slice::BitSlice};
 use core::cmp::Ordering;
+use web3::types::Address;
 use winterfell::math::{curves::curve_f63::Scalar, fields::f63::BaseElement, FieldElement};
 
 // TRACE INITIALIZATION
@@ -34,7 +35,7 @@ pub(crate) fn init_sig_verification_state(
 
 pub(crate) fn update_sig_verification_state(
     step: usize,
-    message: [BaseElement; AFFINE_POINT_WIDTH * 2 + 4],
+    message: [BaseElement; MSG_LENGTH],
     vkey_point: [BaseElement; AFFINE_POINT_WIDTH],
     s_bits: &BitSlice<Lsb0, u8>,
     h_bits: &BitSlice<Lsb0, u8>,
@@ -125,18 +126,16 @@ pub(crate) fn update_sig_verification_state(
 // ================================================================================================
 
 pub(crate) fn build_sig_info(
-    message: &[BaseElement; AFFINE_POINT_WIDTH * 2 + 4],
+    voting_key: &[BaseElement; AFFINE_POINT_WIDTH],
+    address: Address,
     signature: &([BaseElement; POINT_COORDINATE_WIDTH], Scalar),
-) -> ([BaseElement; AFFINE_POINT_WIDTH], [u8; 32], [u8; 32]) {
-    let mut vkey_point = [BaseElement::ZERO; AFFINE_POINT_WIDTH];
-    vkey_point.clone_from_slice(&message[..AFFINE_POINT_WIDTH]);
+) -> ([BaseElement; MSG_LENGTH], [u8; 32], [u8; 32]) {
     let s_bytes = signature.1.to_bytes();
-
-    let h = super::hash_message(signature.0, *message);
+    let message = prepare_message(&voting_key, address);
+    let h = super::hash_message(&signature.0, &message);
     let mut h_bytes = [0u8; 32];
     for (i, h_word) in h.iter().enumerate().take(4) {
         h_bytes[8 * i..8 * i + 8].copy_from_slice(&h_word.to_bytes());
     }
-
-    (vkey_point, s_bytes, h_bytes)
+    (message, s_bytes, h_bytes)
 }

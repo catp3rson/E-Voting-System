@@ -6,12 +6,18 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use self::constants::*;
+use super::utils::{
+    ecc, field,
+    rescue::{self, Rescue63},
+};
 use bitvec::{order::Lsb0, view::AsBits};
-use rand_core::{OsRng, RngCore};
+use rand_core::OsRng;
+use web3::types::Address;
 use winterfell::{
     crypto::Hasher,
     math::{
-        curves::curve_f63::{AffinePoint, Scalar},
+        curves::curve_f63::{AffinePoint, ProjectivePoint, Scalar},
         fields::f63::BaseElement,
         FieldElement,
     },
@@ -28,21 +34,11 @@ use std::time::Instant;
 #[cfg(feature = "std")]
 use winterfell::{math::log2, Trace};
 
-use super::utils::{
-    ecc::{self, AFFINE_POINT_WIDTH, POINT_COORDINATE_WIDTH},
-    field,
-    rescue::{self, Rescue63, RATE_WIDTH as HASH_RATE_WIDTH},
-};
-
 pub(crate) mod constants;
 mod trace;
-pub(crate) use trace::{
-    build_sig_info, init_sig_verification_state, update_sig_verification_state,
-};
 
 mod air;
-pub(crate) use air::{evaluate_constraints, periodic_columns, transition_constraint_degrees};
-use air::{PublicInputs, SchnorrAir};
+pub(crate) use air::{PublicInputs, SchnorrAir};
 
 mod prover;
 pub(crate) use prover::SchnorrProver;
@@ -75,8 +71,10 @@ pub fn get_example(num_signatures: usize) -> SchnorrExample {
 #[derive(Clone, Debug)]
 pub struct SchnorrExample {
     options: ProofOptions,
-    /// Messages
-    pub messages: Vec<[BaseElement; AFFINE_POINT_WIDTH * 2 + 4]>,
+    /// Voting keys
+    pub voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    /// Ethereum addresses
+    pub addresses: Vec<Address>,
     /// Schnorr signatures
     pub signatures: Vec<([BaseElement; POINT_COORDINATE_WIDTH], Scalar)>,
 }
@@ -84,33 +82,16 @@ pub struct SchnorrExample {
 impl SchnorrExample {
     /// Outputs a new `SchnorrExample` with `num_signatures` signatures on random messages.
     pub fn new(options: ProofOptions, num_signatures: usize) -> SchnorrExample {
-        let mut rng = OsRng;
-        let mut skeys = Vec::with_capacity(num_signatures);
-        let mut messages = Vec::with_capacity(num_signatures);
-        let mut signatures = Vec::with_capacity(num_signatures);
-
-        for _ in 0..num_signatures {
-            let skey = Scalar::random(&mut rng);
-            let vkey = AffinePoint::from(AffinePoint::generator() * skey);
-
-            let mut message = [BaseElement::ZERO; AFFINE_POINT_WIDTH * 2 + 4];
-            message[0..POINT_COORDINATE_WIDTH].copy_from_slice(&vkey.get_x());
-            message[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH].copy_from_slice(&vkey.get_y());
-            for msg in message.iter_mut().skip(AFFINE_POINT_WIDTH) {
-                *msg = BaseElement::random(&mut rng);
-            }
-
-            skeys.push(skey);
-            messages.push(message);
-        }
+        let (secret_keys, voting_keys) = random_key_pairs(num_signatures);
+        let addresses = (0..num_signatures)
+            .map(|_| Address::random())
+            .collect::<Vec<Address>>();
 
         // compute the Schnorr signatures
         #[cfg(feature = "std")]
         let now = Instant::now();
 
-        for i in 0..num_signatures {
-            signatures.push(sign(messages[i], skeys[i]));
-        }
+        let signatures = sign_messages(&voting_keys, &addresses, &secret_keys);
 
         #[cfg(feature = "std")]
         debug!(
@@ -123,7 +104,11 @@ impl SchnorrExample {
         #[cfg(feature = "std")]
         let now = Instant::now();
 
-        assert!(naive_verify_signatures(&messages, &signatures));
+        assert!(naive_verify_signatures(
+            &voting_keys,
+            &addresses,
+            &signatures
+        ));
 
         #[cfg(feature = "std")]
         debug!(
@@ -134,7 +119,8 @@ impl SchnorrExample {
 
         SchnorrExample {
             options,
-            messages,
+            voting_keys,
+            addresses,
             signatures,
         }
     }
@@ -146,12 +132,13 @@ impl SchnorrExample {
         debug!(
             "Generating proof for verifying {} Schnorr signatures\n\
             ---------------------",
-            self.messages.len(),
+            self.voting_keys.len(),
         );
 
         let prover = SchnorrProver::new(
             self.options.clone(),
-            self.messages.clone(),
+            self.voting_keys.clone(),
+            self.addresses.clone(),
             self.signatures.clone(),
         );
 
@@ -174,7 +161,8 @@ impl SchnorrExample {
     /// Verifies the validity of a proof of correct Schnorr signature verification
     pub fn verify(&self, proof: StarkProof) -> Result<(), VerifierError> {
         let pub_inputs = PublicInputs {
-            messages: self.messages.clone(),
+            voting_keys: self.voting_keys.clone(),
+            addresses: self.addresses.clone(),
             signatures: self.signatures.clone(),
         };
         winterfell::verify::<SchnorrAir>(proof, pub_inputs)
@@ -182,27 +170,43 @@ impl SchnorrExample {
 
     #[cfg(test)]
     fn verify_with_wrong_message(&self, proof: StarkProof) -> Result<(), VerifierError> {
-        let mut rng = OsRng;
-        let fault_index = (rng.next_u32() as usize) % self.messages.len();
-        let fault_position = (rng.next_u32() as usize) % self.messages[0].len();
-        let mut wrong_messages = self.messages.clone();
-        wrong_messages[fault_index][fault_position] += BaseElement::ONE;
-        let pub_inputs = PublicInputs {
-            messages: wrong_messages,
+        use rand_core::RngCore;
+
+        let mut pub_inputs = PublicInputs {
+            voting_keys: self.voting_keys.clone(),
+            addresses: self.addresses.clone(),
             signatures: self.signatures.clone(),
         };
+        let mut rng = OsRng;
+
+        if rng.next_u32() % 2 == 0 {
+            // Wrong voting key
+            let fault_index = (rng.next_u32() as usize) % self.voting_keys.len();
+            let fault_position = (rng.next_u32() as usize) % AFFINE_POINT_WIDTH;
+            pub_inputs.voting_keys[fault_index][fault_position] += BaseElement::ONE;
+        } else {
+            // Wrong addresses
+            let fault_index = (rng.next_u32() as usize) % self.addresses.len();
+            let fault_position = (rng.next_u32() as usize) % Address::len_bytes();
+            let mut wrong_address = *pub_inputs.addresses[fault_index].as_fixed_bytes();
+            wrong_address[fault_position] ^= 1;
+            pub_inputs.addresses[fault_index] = Address::from_slice(&wrong_address);
+        }
         winterfell::verify::<SchnorrAir>(proof, pub_inputs)
     }
 
     #[cfg(test)]
     fn verify_with_wrong_signature(&self, proof: StarkProof) -> Result<(), VerifierError> {
+        use rand_core::RngCore;
+
         let mut rng = OsRng;
         let fault_index = (rng.next_u32() as usize) % self.signatures.len();
         let fault_position = (rng.next_u32() as usize) % self.signatures[0].0.len();
         let mut wrong_signatures = self.signatures.clone();
         wrong_signatures[fault_index].0[fault_position] += BaseElement::ONE;
         let pub_inputs = PublicInputs {
-            messages: self.messages.clone(),
+            voting_keys: self.voting_keys.clone(),
+            addresses: self.addresses.clone(),
             signatures: wrong_signatures,
         };
         winterfell::verify::<SchnorrAir>(proof, pub_inputs)
@@ -213,43 +217,21 @@ impl SchnorrExample {
 // ================================================================================================
 
 /// Computes a Schnorr signature
-pub(crate) fn sign(
-    message: [BaseElement; AFFINE_POINT_WIDTH * 2 + 4],
-    skey: Scalar,
-) -> ([BaseElement; POINT_COORDINATE_WIDTH], Scalar) {
+pub(crate) fn sign_messages(
+    voting_keys: &Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    addresses: &Vec<Address>,
+    secret_keys: &Vec<Scalar>,
+) -> Vec<([BaseElement; POINT_COORDINATE_WIDTH], Scalar)> {
     let mut rng = OsRng;
-    let r = Scalar::random(&mut rng);
-    let r_point = AffinePoint::from(AffinePoint::generator() * r);
+    let mut signatures = Vec::with_capacity(voting_keys.len());
 
-    let h = hash_message(r_point.get_x(), message);
-    let mut h_bytes = [0u8; 32];
-    // take the first 4 elements of the hash
-    for (i, h_word) in h.iter().enumerate().take(4) {
-        h_bytes[8 * i..8 * i + 8].copy_from_slice(&h_word.to_bytes());
-    }
-    let h_bits = h_bytes.as_bits::<Lsb0>();
-
-    // Reconstruct a scalar from the binary sequence of h
-    let h_scalar = Scalar::from_bits(h_bits);
-
-    let s = r - skey * h_scalar;
-    (r_point.get_x(), s)
-}
-
-/// Naively verify Schnorr signatures
-pub fn naive_verify_signatures(
-    messages: &Vec<[BaseElement; AFFINE_POINT_WIDTH * 2 + 4]>,
-    signatures: &Vec<([BaseElement; POINT_COORDINATE_WIDTH], Scalar)>,
-) -> bool {
-    for (&message, signature) in messages.iter().zip(signatures.iter()) {
-        let s_point = AffinePoint::generator() * signature.1;
-        let mut vkey_coords = [BaseElement::ZERO; AFFINE_POINT_WIDTH];
-        vkey_coords[..AFFINE_POINT_WIDTH].clone_from_slice(&message[..AFFINE_POINT_WIDTH]);
-        let vkey = AffinePoint::from_raw_coordinates(vkey_coords);
-        assert!(vkey.is_on_curve());
-
-        let h = hash_message(signature.0, message);
+    for i in 0..voting_keys.len() {
+        let r = Scalar::random(&mut rng);
+        let r_point = AffinePoint::from(AffinePoint::generator() * r);
+        let message = prepare_message(&voting_keys[i], addresses[i]);
+        let h = hash_message(&r_point.get_x(), &message);
         let mut h_bytes = [0u8; 32];
+        // take the first 4 elements of the hash
         for (i, h_word) in h.iter().enumerate().take(4) {
             h_bytes[8 * i..8 * i + 8].copy_from_slice(&h_word.to_bytes());
         }
@@ -258,23 +240,120 @@ pub fn naive_verify_signatures(
         // Reconstruct a scalar from the binary sequence of h
         let h_scalar = Scalar::from_bits(h_bits);
 
-        let h_pubkey_point = vkey * h_scalar;
+        let s = r - secret_keys[i] * h_scalar;
+        signatures.push((r_point.get_x(), s))
+    }
 
-        let r_point = AffinePoint::from(s_point + h_pubkey_point);
+    signatures
+}
 
-        if r_point.get_x() != signature.0 {
+/// Naively verify Schnorr signatures
+pub fn naive_verify_signatures(
+    voting_keys: &Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    addresses: &Vec<Address>,
+    signatures: &Vec<([BaseElement; POINT_COORDINATE_WIDTH], Scalar)>,
+) -> bool {
+    for i in 0..voting_keys.len() {
+        if !verify_signature(voting_keys[i], addresses[i], signatures[i]) {
             return false;
         }
     }
-
     true
 }
 
+/// Verify a Schnorr signature
+#[inline]
+pub(crate) fn verify_signature(
+    voting_key: [BaseElement; AFFINE_POINT_WIDTH],
+    address: Address,
+    signature: ([BaseElement; POINT_COORDINATE_WIDTH], Scalar),
+) -> bool {
+    let s_point = AffinePoint::generator() * signature.1;
+    let message = prepare_message(&voting_key, address);
+    let voting_key = AffinePoint::from_raw_coordinates(voting_key);
+    assert!(voting_key.is_on_curve());
+    let h = hash_message(&signature.0, &message);
+    let mut h_bytes = [0u8; 32];
+    for (i, h_word) in h.iter().enumerate().take(4) {
+        h_bytes[8 * i..8 * i + 8].copy_from_slice(&h_word.to_bytes());
+    }
+    let h_bits = h_bytes.as_bits::<Lsb0>();
+    // Reconstruct a scalar from the binary sequence of h
+    let h_scalar = Scalar::from_bits(h_bits);
+    let h_pubkey_point = voting_key * h_scalar;
+    let r_point = AffinePoint::from(s_point + h_pubkey_point);
+    r_point.get_x() == signature.0
+}
+
+pub(crate) fn random_key_pairs(
+    num_pairs: usize,
+) -> (Vec<Scalar>, Vec<[BaseElement; AFFINE_POINT_WIDTH]>) {
+    let mut rng = OsRng;
+    let secret_keys = (0..num_pairs)
+        .map(|_| Scalar::random(&mut rng))
+        .collect::<Vec<Scalar>>();
+    let voting_keys = secret_keys
+        .iter()
+        .map(|&s| projective_to_elements(ProjectivePoint::generator() * s))
+        .collect::<Vec<[BaseElement; AFFINE_POINT_WIDTH]>>();
+    (secret_keys, voting_keys)
+}
+
+#[inline]
+pub(crate) fn projective_to_elements(point: ProjectivePoint) -> [BaseElement; AFFINE_POINT_WIDTH] {
+    let mut result = [BaseElement::ZERO; AFFINE_POINT_WIDTH];
+    result[..POINT_COORDINATE_WIDTH].copy_from_slice(&AffinePoint::from(point).get_x());
+    result[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH]
+        .copy_from_slice(&AffinePoint::from(point).get_y());
+    result
+}
+
+/// Prepare messages that voters need to sign based
+/// on addresses and voting keys
+#[inline]
+pub(crate) fn prepare_messages(
+    voting_keys: &Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    addresses: &Vec<Address>,
+) -> Vec<[BaseElement; MSG_LENGTH]> {
+    let mut messages = Vec::with_capacity(MSG_LENGTH);
+
+    for i in 0..voting_keys.len() {
+        messages.push(prepare_message(&voting_keys[i], addresses[i]));
+    }
+
+    messages
+}
+
+#[inline]
+pub(crate) fn prepare_message(
+    voting_key: &[BaseElement; AFFINE_POINT_WIDTH],
+    address: Address,
+) -> [BaseElement; MSG_LENGTH] {
+    let mut message = [BaseElement::ZERO; MSG_LENGTH];
+    // Voting key
+    message[..AFFINE_POINT_WIDTH].copy_from_slice(voting_key);
+    // Ethereum address
+    let address_bytes = address.as_bytes();
+    for i in (0..20).step_by(5) {
+        message[AFFINE_POINT_WIDTH + (i / 5)] = BaseElement::from(u64::from_be_bytes([
+            address_bytes[i],
+            address_bytes[i + 1],
+            address_bytes[i + 2],
+            address_bytes[i + 3],
+            address_bytes[i + 4],
+            0,
+            0,
+            0,
+        ]));
+    }
+    message
+}
+
 fn hash_message(
-    input: [BaseElement; POINT_COORDINATE_WIDTH],
-    message: [BaseElement; AFFINE_POINT_WIDTH * 2 + 4],
+    input: &[BaseElement; POINT_COORDINATE_WIDTH],
+    message: &[BaseElement; MSG_LENGTH],
 ) -> [BaseElement; HASH_RATE_WIDTH] {
-    let mut h = Rescue63::digest(&input);
+    let mut h = Rescue63::digest(input);
     let mut message_chunk = rescue::Hash::new(
         message[0], message[1], message[2], message[3], message[4], message[5], message[6],
     );

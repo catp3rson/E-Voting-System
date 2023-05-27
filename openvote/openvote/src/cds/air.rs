@@ -6,20 +6,15 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use core::result;
-use std::process::Output;
-
 use super::super::utils::periodic_columns::stitch;
 use super::constants::*;
-use super::rescue::{RATE_WIDTH as HASH_RATE_WIDTH, STATE_WIDTH as HASH_STATE_WIDTH};
 use super::trace::prepare_encrypted_votes;
 use super::{ecc, field, rescue};
-use crate::utils::ecc::GENERATOR;
 use crate::utils::{are_equal, not, EvaluationResult};
-use unroll::unroll_for_loops;
 use winterfell::{
     math::{fields::f63::BaseElement, FieldElement},
-    Air, AirContext, Assertion, ByteWriter, EvaluationFrame, ProofOptions, Serializable, TraceInfo,
+    Air, AirContext, Assertion, ByteReader, ByteWriter, Deserializable, DeserializationError,
+    EvaluationFrame, ProofOptions, Serializable, SliceReader, TraceInfo,
     TransitionConstraintDegree,
 };
 
@@ -31,22 +26,92 @@ use alloc::vec::Vec;
 
 #[derive(Debug, Clone)]
 pub struct PublicInputs {
-    // [vk, ev, a1, b1, a2, b2]
-    pub proofs: Vec<[BaseElement; AFFINE_POINT_WIDTH * 6]>,
+    pub voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    pub encrypted_votes: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    // [a1, b1, a2, b2]
+    pub cds_proofs: Vec<[BaseElement; PROOF_NUM_POINTS * AFFINE_POINT_WIDTH]>,
     pub outputs: Vec<[BaseElement; AFFINE_POINT_WIDTH * 5]>,
 }
 
 impl Serializable for PublicInputs {
     fn write_into<W: ByteWriter>(&self, target: &mut W) {
-        for i in 0..self.proofs.len() {
-            Serializable::write_batch_into(&self.proofs[i], target);
+        target.write_u32(self.voting_keys.len() as u32);
+        for voting_key in self.voting_keys.iter() {
+            Serializable::write_batch_into(voting_key, target);
         }
+        for encrypted_vote in self.encrypted_votes.iter() {
+            Serializable::write_batch_into(encrypted_vote, target);
+        }
+        for cds_proof in self.cds_proofs.iter() {
+            Serializable::write_batch_into(cds_proof, target);
+        }
+        for output in self.outputs.iter() {
+            Serializable::write_batch_into(output, target);
+        }
+    }
+}
+
+impl Deserializable for PublicInputs {
+    fn read_from<R: ByteReader>(source: &mut R) -> Result<Self, DeserializationError> {
+        let mut voting_key = [BaseElement::ZERO; AFFINE_POINT_WIDTH];
+        let mut encrypted_vote = [BaseElement::ZERO; AFFINE_POINT_WIDTH];
+        let mut cds_proof = [BaseElement::ZERO; PROOF_NUM_POINTS * AFFINE_POINT_WIDTH];
+        let mut output = [BaseElement::ZERO; AFFINE_POINT_WIDTH * 5];
+
+        let num_proofs = source.read_u32()? as usize;
+        let mut voting_keys = Vec::with_capacity(num_proofs);
+        let mut encrypted_votes = Vec::with_capacity(num_proofs);
+        let mut cds_proofs = Vec::with_capacity(num_proofs);
+        let mut outputs = Vec::with_capacity(num_proofs);
+
+        for _ in 0..num_proofs {
+            voting_key.copy_from_slice(&BaseElement::read_batch_from(source, AFFINE_POINT_WIDTH)?);
+            voting_keys.push(voting_key);
+        }
+
+        for _ in 0..num_proofs {
+            encrypted_vote
+                .copy_from_slice(&BaseElement::read_batch_from(source, AFFINE_POINT_WIDTH)?);
+            encrypted_votes.push(encrypted_vote);
+        }
+
+        for _ in 0..num_proofs {
+            cds_proof.copy_from_slice(&BaseElement::read_batch_from(
+                source,
+                PROOF_NUM_POINTS * AFFINE_POINT_WIDTH,
+            )?);
+            cds_proofs.push(cds_proof);
+        }
+
+        for _ in 0..num_proofs {
+            output.copy_from_slice(&BaseElement::read_batch_from(
+                source,
+                AFFINE_POINT_WIDTH * 5,
+            )?);
+            outputs.push(output);
+        }
+
+        Ok(Self {
+            voting_keys,
+            encrypted_votes,
+            cds_proofs,
+            outputs,
+        })
+    }
+}
+
+impl PublicInputs {
+    pub fn from_bytes(source: &[u8]) -> Result<Self, DeserializationError> {
+        let mut source = SliceReader::new(source);
+        Self::read_from(&mut source)
     }
 }
 
 pub struct CDSAir {
     context: AirContext<BaseElement>,
-    proofs: Vec<[BaseElement; AFFINE_POINT_WIDTH * 6]>,
+    voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    encrypted_votes: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    cds_proofs: Vec<[BaseElement; PROOF_NUM_POINTS * AFFINE_POINT_WIDTH]>,
     outputs: Vec<[BaseElement; AFFINE_POINT_WIDTH * 5]>,
 }
 
@@ -61,7 +126,9 @@ impl Air for CDSAir {
         assert_eq!(TRACE_WIDTH, trace_info.width());
         CDSAir {
             context: AirContext::new(trace_info, degrees, options),
-            proofs: pub_inputs.proofs,
+            voting_keys: pub_inputs.voting_keys,
+            encrypted_votes: pub_inputs.encrypted_votes,
+            cds_proofs: pub_inputs.cds_proofs,
             outputs: pub_inputs.outputs,
         }
     }
@@ -139,7 +206,7 @@ impl Air for CDSAir {
 
     fn get_assertions(&self) -> Vec<Assertion<Self::BaseField>> {
         let (proof_points_a, proof_points_b, c_diff_value) =
-            transpose_proof_points(&self.proofs, &self.outputs);
+            transpose_proof_points(&self.cds_proofs, &self.outputs);
 
         // Assert starting and ending values
         let mut assertions = vec![];
@@ -206,7 +273,7 @@ impl Air for CDSAir {
             ));
         }
         // Rescue registers
-        for i in 0..self.proofs.len() {
+        for i in 0..self.voting_keys.len() {
             assertions.push(Assertion::single(
                 5 * PROJECTIVE_POINT_WIDTH + 7,
                 i * CDS_CYCLE_LENGTH,
@@ -282,33 +349,35 @@ impl Air for CDSAir {
         );
         // Values to feed to the last registers of the hash state at the end of a cycle.
         // Always zero (i.e. resetting the rate) or equal to the chunks of the message.
-        let trace_width = CDS_CYCLE_LENGTH * self.proofs.len();
+        let trace_width = CDS_CYCLE_LENGTH * self.voting_keys.len();
         let mut hash_intermediate_inputs =
             vec![vec![BaseElement::ZERO; trace_width]; HASH_RATE_WIDTH];
 
         let mut blinding_keys = vec![vec![BaseElement::ZERO; trace_width]; AFFINE_POINT_WIDTH];
-
         let mut voting_keys = vec![vec![BaseElement::ZERO; trace_width]; AFFINE_POINT_WIDTH];
-
         let mut encrypted_votes = vec![vec![BaseElement::ZERO; trace_width]; AFFINE_POINT_WIDTH];
 
         let mut blinding_key = ecc::IDENTITY;
-        for proof in self.proofs.iter().skip(1) {
-            ecc::compute_add_mixed(
-                &mut blinding_key,
-                &ecc::compute_negation_affine(&proof[..AFFINE_POINT_WIDTH]),
-            );
+        for voting_key in self.voting_keys.iter().skip(1) {
+            ecc::compute_add_mixed(&mut blinding_key, &ecc::compute_negation_affine(voting_key));
         }
         // we don't need to set hash_message[0] = BaseElement::from(voter_index)
         // because we only take hash_message[HASH_RATE_WIDTH..]
         let mut hash_message = [BaseElement::ZERO; HASH_MSG_LENGTH];
 
-        for (voter_index, proof) in self.proofs.iter().enumerate() {
-            hash_message[AFFINE_POINT_WIDTH..AFFINE_POINT_WIDTH * 7].copy_from_slice(proof);
+        for voter_index in 0..self.voting_keys.len() {
+            let voting_key = self.voting_keys[voter_index];
+            let encrypted_vote = self.encrypted_votes[voter_index];
+            let cds_proof = self.cds_proofs[voter_index];
+
+            hash_message[AFFINE_POINT_WIDTH..AFFINE_POINT_WIDTH * 2].copy_from_slice(&voting_key);
+            hash_message[AFFINE_POINT_WIDTH * 2..AFFINE_POINT_WIDTH * 3]
+                .copy_from_slice(&encrypted_vote);
+            hash_message[AFFINE_POINT_WIDTH * 3..AFFINE_POINT_WIDTH * 7]
+                .copy_from_slice(&cds_proof);
 
             let affine_blinding_key = ecc::reduce_to_affine(&blinding_key);
-            let (encrypted_vote_1, encrypted_vote_2) =
-                prepare_encrypted_votes(&proof[AFFINE_POINT_WIDTH..AFFINE_POINT_WIDTH * 2]);
+            let (encrypted_vote_1, encrypted_vote_2) = prepare_encrypted_votes(&encrypted_vote);
 
             for i in 0..NUM_HASH_ITER - 1 {
                 for (j, input) in hash_intermediate_inputs.iter_mut().enumerate() {
@@ -325,7 +394,7 @@ impl Air for CDSAir {
                     .fill(affine_blinding_key[i]);
                 voting_keys[i]
                     [voter_index * CDS_CYCLE_LENGTH..(voter_index + 1) * CDS_CYCLE_LENGTH]
-                    .fill(proof[i]);
+                    .fill(voting_key[i]);
                 encrypted_votes[i][voter_index * CDS_CYCLE_LENGTH
                     ..voter_index * CDS_CYCLE_LENGTH + NROWS_PER_PHASE]
                     .fill(encrypted_vote_1[i]);
@@ -335,12 +404,9 @@ impl Air for CDSAir {
             }
 
             // get the blinding key of the next voter
-            if voter_index + 1 < self.proofs.len() {
-                ecc::compute_add_mixed(&mut blinding_key, &proof[..AFFINE_POINT_WIDTH]);
-                ecc::compute_add_mixed(
-                    &mut blinding_key,
-                    &self.proofs[voter_index + 1][..AFFINE_POINT_WIDTH],
-                )
+            if voter_index + 1 < self.voting_keys.len() {
+                ecc::compute_add_mixed(&mut blinding_key, &voting_key);
+                ecc::compute_add_mixed(&mut blinding_key, &self.voting_keys[voter_index + 1])
             }
         }
 
@@ -785,22 +851,20 @@ pub(crate) fn transition_constraint_degrees() -> Vec<TransitionConstraintDegree>
 }
 
 #[allow(clippy::type_complexity)]
-#[unroll_for_loops]
 fn transpose_proof_points(
-    proofs: &Vec<[BaseElement; AFFINE_POINT_WIDTH * 6]>,
+    cds_proofs: &Vec<[BaseElement; PROOF_NUM_POINTS * AFFINE_POINT_WIDTH]>,
     outputs: &Vec<[BaseElement; AFFINE_POINT_WIDTH * 5]>,
 ) -> (
     Vec<Vec<BaseElement>>,
     Vec<Vec<BaseElement>>,
     Vec<Vec<BaseElement>>,
 ) {
-    let n = proofs.len() * 2;
+    let n = cds_proofs.len() * 2;
     let mut result1 = vec![Vec::with_capacity(n); AFFINE_POINT_WIDTH];
     let mut result2 = vec![Vec::with_capacity(n); AFFINE_POINT_WIDTH];
     let mut result3 = vec![Vec::with_capacity(n / 2); AFFINE_POINT_WIDTH];
 
-    for (proof, output) in proofs.iter().zip(outputs.iter()) {
-        let proof_points = &proof[AFFINE_POINT_WIDTH * 2..];
+    for (proof_points, output) in cds_proofs.iter().zip(outputs.iter()) {
         // a1, a2
         for i in 0..AFFINE_POINT_WIDTH {
             result1[i].push(proof_points[i] + output[i]);

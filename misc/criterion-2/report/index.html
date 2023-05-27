@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Index - Criterion.rs</title>
+    <style type="text/css">
+        body {
+            font: 14px Helvetica Neue;
+            text-rendering: optimizelegibility;
+        }
+
+        .body {
+            width: 960px;
+            margin: auto;
+        }
+
+        a:link {
+            color: #1F78B4;
+            text-decoration: none;
+        }
+
+        h2 {
+            font-size: 36px;
+            font-weight: 300;
+        }
+
+        h3 {
+            font-size: 24px;
+            font-weight: 300;
+        }
+
+        #footer {
+            height: 40px;
+            background: #888;
+            color: white;
+            font-size: larger;
+            font-weight: 300;
+        }
+
+        #footer a {
+            color: white;
+            text-decoration: underline;
+        }
+
+        #footer p {
+            text-align: center
+        }
+
+        table {
+            border-collapse: collapse;
+        }
+
+        table,
+        th,
+        td {
+            border: 1px solid #888;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="body">
+        <h2>Criterion.rs Benchmark Index</h2>
+        See individual benchmark pages below for more details.
+        <ul>
+            <li><a href="../cds/report/index.html">cds</a></li>
+            
+            <ul>
+                <li>
+                    <table>
+                        <tr>
+                            <th></th>
+                            <th><a href="../cds/naive/report/index.html">naive</a></th>
+                            <th><a href="../cds/prove/report/index.html">prove</a></th>
+                            <th><a href="../cds/verify/report/index.html">verify</a></th>
+                        </tr>
+                        <tr>
+                            <th><a href="../cds/8/report/index.html">8</a></th>
+                            <td><a href="../cds/naive/8/report/index.html">cds/naive/8</a></td>
+                            <td><a href="../cds/prove/8/report/index.html">cds/prove/8</a></td>
+                            <td><a href="../cds/verify/8/report/index.html">cds/verify/8</a></td>
+                        </tr>
+                        <tr>
+                            <th><a href="../cds/16/report/index.html">16</a></th>
+                            <td><a href="../cds/naive/16/report/index.html">cds/naive/16</a></td>
+                            <td><a href="../cds/prove/16/report/index.html">cds/prove/16</a></td>
+                            <td><a href="../cds/verify/16/report/index.html">cds/verify/16</a></td>
+                        </tr>
+                        <tr>
+                            <th><a href="../cds/32/report/index.html">32</a></th>
+                            <td><a href="../cds/naive/32/report/index.html">cds/naive/32</a></td>
+                            <td><a href="../cds/prove/32/report/index.html">cds/prove/32</a></td>
+                            <td><a href="../cds/verify/32/report/index.html">cds/verify/32</a></td>
+                        </tr>
+                        <tr>
+                            <th><a href="../cds/64/report/index.html">64</a></th>
+                            <td><a href="../cds/naive/64/report/index.html">cds/naive/64</a></td>
+                            <td><a href="../cds/prove/64/report/index.html">cds/prove/64</a></td>
+                            <td><a href="../cds/verify/64/report/index.html">cds/verify/64</a></td>
+                        </tr>
+                        <tr>
+                            <th><a href="../cds/128/report/index.html">128</a></th>
+                            <td><a href="../cds/naive/128/report/index.html">cds/naive/128</a></td>
+                            <td><a href="../cds/prove/128/report/index.html">cds/prove/128</a></td>
+                            <td><a href="../cds/verify/128/report/index.html">cds/verify/128</a></td>
+                        </tr>
+                    </table>
+                </li>
+            </ul>
+            <li><a href="../merkle/report/index.html">merkle</a></li>
+            
+            <ul>
+                <li>
+                    <table>
+                        <tr>
+                            <th></th>
+                            <th><a href="../merkle/naive/report/index.html">naive</a></th>
+                            <th><a href="../merkle/prove/report/index.html">prove</a></th>
+                            <th><a href="../merkle/verify/report/index.html">verify</a></th>
+                        </tr>
+                        <tr>
+                            <th><a href="../merkle/8/report/index.html">8</a></th>
+                            <td><a href="../merkle/naive/8/report/index.html">merkle/naive/8</a></td>
+                            <td><a href="../merkle/prove/8/report/index.html">merkle/prove/8</a></td>
+                            <td><a href="../merkle/verify/8/report/index.html">merkle/verify/8</a></td>
+                        </tr>
+                        <tr>
+                            <th><a href="../merkle/16/report/index.html">16</a></th>
+                            <td><a href="../merkle/naive/16/report/index.html">merkle/naive/16</a></td>
+                            <td><a href="../merkle/prove/16/report/index.html">merkle/prove/16</a></td>
+                            <td><a href="../merkle/verify/16/report/index.html">merkle/verify/16</a></td>
+                        </tr>
+                        <tr>
+                            <th><a href="../merkle/32/report/index.html">32</a></th>
+                            <td><a href="../merkle/naive/32/report/index.html">merkle/naive/32</a></td>
+                            <td><a href="../merkle/prove/32/report/index.html">merkle/prove/32</a></td>
+                            <td><a href="../merkle/verify/32/report/index.html">merkle/verify/32</a></td>
+                        </tr>
+                        <tr>
+                            <th><a href="../merkle/64/report/index.html">64</a></th>
+                            <td><a href="../merkle/naive/64/report/index.html">merkle/naive/64</a></td>
+                            <td><a href="../merkle/prove/64/report/index.html">merkle/prove/64</a></td>
+                            <td><a href="../merkle/verify/64/report/index.html">merkle/verify/64</a></td>
+                        </tr>
+                        <tr>
+                            <th><a href="../merkle/128/report/index.html">128</a></th>
+                            <td><a href="../merkle/naive/128/report/index.html">merkle/naive/128</a></td>
+                            <td><a href="../merkle/prove/128/report/index.html">merkle/prove/128</a></td>
+                            <td><a href="../merkle/verify/128/report/index.html">merkle/verify/128</a></td>
+                        </tr>
+                    </table>
+                </li>
+            </ul>
+            <li><a href="../schnorr/report/index.html">schnorr</a></li>
+            
+            <ul>
+                <li>
+                    <table>
+                        <tr>
+                            <th></th>
+                            <th><a href="../schnorr/naive/report/index.html">naive</a></th>
+                            <th><a href="../schnorr/prove/report/index.html">prove</a></th>
+                            <th><a href="../schnorr/verify/report/index.html">verify</a></th>
+                        </tr>
+                        <tr>
+                            <th><a href="../schnorr/8/report/index.html">8</a></th>
+                            <td><a href="../schnorr/naive/8/report/index.html">schnorr/naive/8</a></td>
+                            <td><a href="../schnorr/prove/8/report/index.html">schnorr/prove/8</a></td>
+                            <td><a href="../schnorr/verify/8/report/index.html">schnorr/verify/8</a></td>
+                        </tr>
+                        <tr>
+                            <th><a href="../schnorr/16/report/index.html">16</a></th>
+                            <td><a href="../schnorr/naive/16/report/index.html">schnorr/naive/16</a></td>
+                            <td><a href="../schnorr/prove/16/report/index.html">schnorr/prove/16</a></td>
+                            <td><a href="../schnorr/verify/16/report/index.html">schnorr/verify/16</a></td>
+                        </tr>
+                        <tr>
+                            <th><a href="../schnorr/32/report/index.html">32</a></th>
+                            <td><a href="../schnorr/naive/32/report/index.html">schnorr/naive/32</a></td>
+                            <td><a href="../schnorr/prove/32/report/index.html">schnorr/prove/32</a></td>
+                            <td><a href="../schnorr/verify/32/report/index.html">schnorr/verify/32</a></td>
+                        </tr>
+                        <tr>
+                            <th><a href="../schnorr/64/report/index.html">64</a></th>
+                            <td><a href="../schnorr/naive/64/report/index.html">schnorr/naive/64</a></td>
+                            <td><a href="../schnorr/prove/64/report/index.html">schnorr/prove/64</a></td>
+                            <td><a href="../schnorr/verify/64/report/index.html">schnorr/verify/64</a></td>
+                        </tr>
+                        <tr>
+                            <th><a href="../schnorr/128/report/index.html">128</a></th>
+                            <td><a href="../schnorr/naive/128/report/index.html">schnorr/naive/128</a></td>
+                            <td><a href="../schnorr/prove/128/report/index.html">schnorr/prove/128</a></td>
+                            <td><a href="../schnorr/verify/128/report/index.html">schnorr/verify/128</a></td>
+                        </tr>
+                    </table>
+                </li>
+            </ul>
+            <li><a href="../tally/report/index.html">tally</a></li>
+            
+            <ul>
+                <li>
+                    <table>
+                        <tr>
+                            <th></th>
+                            <th><a href="../tally/naive/report/index.html">naive</a></th>
+                            <th><a href="../tally/prove/report/index.html">prove</a></th>
+                            <th><a href="../tally/verify/report/index.html">verify</a></th>
+                        </tr>
+                        <tr>
+                            <th><a href="../tally/8/report/index.html">8</a></th>
+                            <td><a href="../tally/naive/8/report/index.html">tally/naive/8</a></td>
+                            <td><a href="../tally/prove/8/report/index.html">tally/prove/8</a></td>
+                            <td><a href="../tally/verify/8/report/index.html">tally/verify/8</a></td>
+                        </tr>
+                        <tr>
+                            <th><a href="../tally/16/report/index.html">16</a></th>
+                            <td><a href="../tally/naive/16/report/index.html">tally/naive/16</a></td>
+                            <td><a href="../tally/prove/16/report/index.html">tally/prove/16</a></td>
+                            <td><a href="../tally/verify/16/report/index.html">tally/verify/16</a></td>
+                        </tr>
+                        <tr>
+                            <th><a href="../tally/32/report/index.html">32</a></th>
+                            <td><a href="../tally/naive/32/report/index.html">tally/naive/32</a></td>
+                            <td><a href="../tally/prove/32/report/index.html">tally/prove/32</a></td>
+                            <td><a href="../tally/verify/32/report/index.html">tally/verify/32</a></td>
+                        </tr>
+                        <tr>
+                            <th><a href="../tally/64/report/index.html">64</a></th>
+                            <td><a href="../tally/naive/64/report/index.html">tally/naive/64</a></td>
+                            <td><a href="../tally/prove/64/report/index.html">tally/prove/64</a></td>
+                            <td><a href="../tally/verify/64/report/index.html">tally/verify/64</a></td>
+                        </tr>
+                        <tr>
+                            <th><a href="../tally/128/report/index.html">128</a></th>
+                            <td><a href="../tally/naive/128/report/index.html">tally/naive/128</a></td>
+                            <td><a href="../tally/prove/128/report/index.html">tally/prove/128</a></td>
+                            <td><a href="../tally/verify/128/report/index.html">tally/verify/128</a></td>
+                        </tr>
+                    </table>
+                </li>
+            </ul>
+        </ul>
+    </div>
+    <div id="footer">
+        <p>This report was generated by
+            <a href="https://github.com/bheisler/criterion.rs">Criterion.rs</a>, a statistics-driven benchmarking
+            library in Rust.</p>
+    </div>
+</body>
+</html>

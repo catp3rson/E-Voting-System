@@ -1,0 +1,11 @@
+group,function,value,throughput_num,throughput_type,sample_measured_value,unit,iteration_count
+schnorr,naive,64,,,7283290101.0,ns,158
+schnorr,naive,64,,,14562453582.0,ns,316
+schnorr,naive,64,,,21964094600.0,ns,474
+schnorr,naive,64,,,29549813986.0,ns,632
+schnorr,naive,64,,,36852563955.0,ns,790
+schnorr,naive,64,,,47556170862.0,ns,948
+schnorr,naive,64,,,52998830631.0,ns,1106
+schnorr,naive,64,,,58726334824.0,ns,1264
+schnorr,naive,64,,,66706584244.0,ns,1422
+schnorr,naive,64,,,75352104796.0,ns,1580

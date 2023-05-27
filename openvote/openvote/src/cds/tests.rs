@@ -30,6 +30,22 @@ fn cds_test_proof_verification_cubic_extension() {
 }
 
 #[test]
+fn cds_test_proof_verification_wrong_voting_key() {
+    let cds = super::CDSExample::new(build_options(1), 2).0;
+    let (pub_inputs, proof) = cds.prove();
+    let verified = cds.verify_with_wrong_voting_key(proof, pub_inputs);
+    assert!(verified.is_err());
+}
+
+#[test]
+fn cds_test_proof_verification_wrong_encrypted_vote() {
+    let cds = super::CDSExample::new(build_options(1), 2).0;
+    let (pub_inputs, proof) = cds.prove();
+    let verified = cds.verify_with_wrong_encrypted_vote(proof, pub_inputs);
+    assert!(verified.is_err());
+}
+
+#[test]
 fn cds_test_proof_verification_wrong_proof() {
     let cds = super::CDSExample::new(build_options(1), 2).0;
     let (pub_inputs, proof) = cds.prove();

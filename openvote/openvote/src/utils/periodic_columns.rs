@@ -121,6 +121,7 @@ pub(crate) fn stitch(
 ///     ],
 /// );
 /// ```
+#[cfg(required)]
 pub(crate) fn fill(
     original_columns: &mut [Vec<BaseElement>],
     additional_columns: Vec<Vec<BaseElement>>,
@@ -186,6 +187,7 @@ pub(crate) fn fill(
 ///     BaseElement::ZERO,
 /// );
 /// ```
+#[cfg(required)]
 pub(crate) fn pad(
     original_columns: &mut [Vec<BaseElement>],
     indices: Vec<usize>,

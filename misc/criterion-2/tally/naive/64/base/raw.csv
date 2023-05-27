@@ -1,0 +1,11 @@
+group,function,value,throughput_num,throughput_type,sample_measured_value,unit,iteration_count
+tally,naive,64,,,6756064925.0,ns,17853
+tally,naive,64,,,14252298349.0,ns,35706
+tally,naive,64,,,18066067074.0,ns,53559
+tally,naive,64,,,24096142445.0,ns,71412
+tally,naive,64,,,30118587397.0,ns,89265
+tally,naive,64,,,36143419291.0,ns,107118
+tally,naive,64,,,42182431015.0,ns,124971
+tally,naive,64,,,48687071413.0,ns,142824
+tally,naive,64,,,54256687218.0,ns,160677
+tally,naive,64,,,60273564236.0,ns,178530

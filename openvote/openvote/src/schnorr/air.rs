@@ -7,13 +7,15 @@
 // except according to those terms.
 
 use super::super::utils::periodic_columns::stitch;
-use super::constants::*;
 use super::rescue::{RATE_WIDTH as HASH_RATE_WIDTH, STATE_WIDTH as HASH_STATE_WIDTH};
+use super::{constants::*, prepare_messages};
 use super::{ecc, field, rescue};
 use crate::utils::{are_equal, is_zero, not, EvaluationResult};
+use web3::ethabi::Address;
 use winterfell::{
     math::{curves::curve_f63::Scalar, fields::f63::BaseElement, FieldElement},
-    Air, AirContext, Assertion, ByteWriter, EvaluationFrame, ProofOptions, Serializable, TraceInfo,
+    Air, AirContext, Assertion, ByteReader, ByteWriter, Deserializable, DeserializationError,
+    EvaluationFrame, ProofOptions, Serializable, SliceReader, TraceInfo,
     TransitionConstraintDegree,
 };
 
@@ -24,23 +26,75 @@ use alloc::vec::Vec;
 // ================================================================================================
 
 pub struct PublicInputs {
-    pub messages: Vec<[BaseElement; AFFINE_POINT_WIDTH * 2 + 4]>,
+    pub voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    pub addresses: Vec<Address>,
     pub signatures: Vec<([BaseElement; POINT_COORDINATE_WIDTH], Scalar)>,
 }
 
 impl Serializable for PublicInputs {
     fn write_into<W: ByteWriter>(&self, target: &mut W) {
-        for i in 0..self.messages.len() {
-            Serializable::write_batch_into(&self.messages[i], target);
-            Serializable::write_batch_into(&self.signatures[i].0, target);
-            target.write(self.signatures[i].1);
+        target.write_u32(self.voting_keys.len() as u32);
+        for voting_key in self.voting_keys.iter() {
+            Serializable::write_batch_into(voting_key, target);
         }
+        for address in self.addresses.iter() {
+            target.write_u8_slice(address.as_bytes());
+        }
+        for signature in self.signatures.iter() {
+            Serializable::write_batch_into(&signature.0, target);
+            target.write(signature.1);
+        }
+    }
+}
+
+impl Deserializable for PublicInputs {
+    fn read_from<R: ByteReader>(source: &mut R) -> Result<Self, DeserializationError> {
+        let mut voting_key = [BaseElement::ZERO; AFFINE_POINT_WIDTH];
+        let mut signature_r = [BaseElement::ZERO; POINT_COORDINATE_WIDTH];
+
+        let num_sigs = source.read_u32()? as usize;
+        let mut voting_keys = Vec::with_capacity(num_sigs);
+        let mut addresses = Vec::with_capacity(num_sigs);
+        let mut signatures = Vec::with_capacity(num_sigs);
+
+        for _ in 0..num_sigs {
+            voting_key.copy_from_slice(&BaseElement::read_batch_from(source, AFFINE_POINT_WIDTH)?);
+            voting_keys.push(voting_key);
+        }
+
+        for _ in 0..num_sigs {
+            let address = Address::from_slice(&source.read_u8_vec(Address::len_bytes())?);
+            addresses.push(address);
+        }
+
+        for _ in 0..num_sigs {
+            signature_r.copy_from_slice(&BaseElement::read_batch_from(
+                source,
+                POINT_COORDINATE_WIDTH,
+            )?);
+            let signature_s = Scalar::read_from(source)?;
+            signatures.push((signature_r, signature_s));
+        }
+
+        Ok(Self {
+            voting_keys,
+            addresses,
+            signatures,
+        })
+    }
+}
+
+impl PublicInputs {
+    pub fn from_bytes(source: &[u8]) -> Result<Self, DeserializationError> {
+        let mut source = SliceReader::new(source);
+        Self::read_from(&mut source)
     }
 }
 
 pub struct SchnorrAir {
     context: AirContext<BaseElement>,
-    messages: Vec<[BaseElement; AFFINE_POINT_WIDTH * 2 + 4]>,
+    voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    addresses: Vec<Address>,
     signatures: Vec<([BaseElement; POINT_COORDINATE_WIDTH], Scalar)>,
 }
 
@@ -55,7 +109,8 @@ impl Air for SchnorrAir {
         assert_eq!(TRACE_WIDTH, trace_info.width());
         SchnorrAir {
             context: AirContext::new(trace_info, degrees, options),
-            messages: pub_inputs.messages,
+            voting_keys: pub_inputs.voting_keys,
+            addresses: pub_inputs.addresses,
             signatures: pub_inputs.signatures,
         }
     }
@@ -259,18 +314,19 @@ impl Air for SchnorrAir {
             AFFINE_POINT_WIDTH
         ];
 
+        let messages = prepare_messages(&self.voting_keys, &self.addresses);
         for message_index in 0..self.signatures.len() {
             for i in 0..NUM_HASH_ITER - 1 {
                 for (j, input) in hash_intermediate_inputs.iter_mut().enumerate() {
                     input[i * HASH_CYCLE_LENGTH
                         + NUM_HASH_ROUNDS
                         + message_index * SIG_CYCLE_LENGTH] =
-                        self.messages[message_index][j + i * HASH_RATE_WIDTH];
+                        messages[message_index][j + i * HASH_RATE_WIDTH];
                 }
             }
             for (i, key) in pub_keys.iter_mut().enumerate() {
                 key[message_index * SIG_CYCLE_LENGTH..(message_index + 1) * SIG_CYCLE_LENGTH]
-                    .fill(self.messages[message_index][i]);
+                    .fill(messages[message_index][i]);
             }
         }
 

@@ -1,6 +1,7 @@
-use crate::{cds::hash_message_bytes, utils::ecc};
-
+use super::trace::*;
+use super::PublicInputs;
 use super::{air::CDSAir, constants::*, diff_registers};
+use crate::{cds::hash_message_bytes, utils::ecc};
 use bitvec::{order::Lsb0, view::AsBits};
 use winterfell::{
     math::{curves::curve_f63::Scalar, fields::f63::BaseElement, FieldElement},
@@ -9,9 +10,6 @@ use winterfell::{
 
 #[cfg(feature = "concurrent")]
 use winterfell::iterators::*;
-
-use super::trace::*;
-use super::PublicInputs;
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
@@ -68,13 +66,12 @@ impl CDSProver {
             ecc::compute_add_mixed(&mut blinding_key, &ecc::compute_negation_affine(voting_key));
         }
 
-        for i in 0..num_proofs {
+        for i in 0..num_proofs - 1 {
             blinding_keys.push(ecc::reduce_to_affine(&blinding_key));
-            if i + 1 < num_proofs {
-                ecc::compute_add_mixed(&mut blinding_key, &self.voting_keys[i]);
-                ecc::compute_add_mixed(&mut blinding_key, &self.voting_keys[i + 1]);
-            }
+            ecc::compute_add_mixed(&mut blinding_key, &self.voting_keys[i]);
+            ecc::compute_add_mixed(&mut blinding_key, &self.voting_keys[i + 1]);
         }
+        blinding_keys.push(ecc::reduce_to_affine(&blinding_key));
 
         trace.fragments(CDS_CYCLE_LENGTH).for_each(|mut cds_trace| {
             // voter index
@@ -135,18 +132,10 @@ impl Prover for CDSProver {
     // This method should use the existing trace to extract the public inputs to be given
     // to the verifier.
     fn get_pub_inputs(&self, trace: &Self::Trace) -> PublicInputs {
-        let mut proofs = Vec::with_capacity(self.voting_keys.len());
-        let mut outputs = Vec::with_capacity(self.voting_keys.len());
+        let num_proofs = self.voting_keys.len();
+        let mut outputs = Vec::with_capacity(num_proofs);
 
-        for i in 0..self.voting_keys.len() {
-            // truncate CDS proof
-            let mut proof = [BaseElement::ZERO; AFFINE_POINT_WIDTH * 6];
-            proof[..AFFINE_POINT_WIDTH].copy_from_slice(&self.voting_keys[i]);
-            proof[AFFINE_POINT_WIDTH..AFFINE_POINT_WIDTH * 2]
-                .copy_from_slice(&self.encrypted_votes[i]);
-            proof[AFFINE_POINT_WIDTH * 2..].copy_from_slice(&self.proof_points[i]);
-            proofs.push(proof);
-
+        for i in 0..num_proofs {
             // get the output of CDS proof verifications from execution trace
             let mut output = [BaseElement::ZERO; AFFINE_POINT_WIDTH * 5];
             let mut row = [BaseElement::ZERO; TRACE_WIDTH];
@@ -200,7 +189,12 @@ impl Prover for CDSProver {
             outputs.push(output);
         }
 
-        PublicInputs { proofs, outputs }
+        PublicInputs {
+            voting_keys: self.voting_keys.clone(),
+            encrypted_votes: self.encrypted_votes.clone(),
+            cds_proofs: self.proof_points.clone(),
+            outputs,
+        }
     }
 
     fn options(&self) -> &ProofOptions {

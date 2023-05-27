@@ -1,0 +1,11 @@
+group,function,value,throughput_num,throughput_type,sample_measured_value,unit,iteration_count
+tally,verify,32,,,7273479591.0,ns,5661
+tally,verify,32,,,14560615484.0,ns,11322
+tally,verify,32,,,21825841574.0,ns,16983
+tally,verify,32,,,29088355156.0,ns,22644
+tally,verify,32,,,36323206621.0,ns,28305
+tally,verify,32,,,43615178936.0,ns,33966
+tally,verify,32,,,51153616151.0,ns,39627
+tally,verify,32,,,58126783295.0,ns,45288
+tally,verify,32,,,65645625404.0,ns,50949
+tally,verify,32,,,73860839476.0,ns,56610

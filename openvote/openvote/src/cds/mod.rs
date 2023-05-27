@@ -6,13 +6,18 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+use self::constants::*;
+use super::utils::{
+    ecc, field,
+    rescue::{self, Rescue63},
+};
+use crate::schnorr::projective_to_elements;
 use bitvec::{order::Lsb0, view::AsBits};
 use rand_core::{OsRng, RngCore};
-use unroll::unroll_for_loops;
 use winterfell::{
     crypto::Hasher,
     math::{
-        curves::curve_f63::{AffinePoint, ProjectivePoint, Scalar},
+        curves::curve_f63::{ProjectivePoint, Scalar},
         fields::f63::BaseElement,
         FieldElement,
     },
@@ -29,19 +34,11 @@ use std::time::Instant;
 #[cfg(feature = "std")]
 use winterfell::{math::log2, Trace};
 
-use self::constants::{HASH_MSG_LENGTH, PROOF_NUM_POINTS, PROOF_NUM_SCALARS};
-
-use super::utils::{
-    ecc::{self, AFFINE_POINT_WIDTH, POINT_COORDINATE_WIDTH},
-    field,
-    rescue::{self, Rescue63, RATE_WIDTH as HASH_RATE_WIDTH},
-};
-
 pub(crate) mod constants;
 mod trace;
 
 mod air;
-use air::{CDSAir, PublicInputs};
+pub(crate) use air::{CDSAir, PublicInputs};
 
 mod prover;
 pub(crate) use prover::CDSProver;
@@ -83,10 +80,14 @@ pub fn get_example(
 #[derive(Clone, Debug)]
 pub struct CDSExample {
     options: ProofOptions,
-    voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
-    encrypted_votes: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
-    proof_points: Vec<[BaseElement; AFFINE_POINT_WIDTH * PROOF_NUM_POINTS]>,
-    proof_scalars: Vec<[Scalar; PROOF_NUM_SCALARS]>,
+    /// Voting keys
+    pub voting_keys: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    /// Encrypted votes
+    pub encrypted_votes: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
+    /// CDS proof points (a1, b1, a2, b2)
+    pub proof_points: Vec<[BaseElement; AFFINE_POINT_WIDTH * PROOF_NUM_POINTS]>,
+    /// CDS proof scalars (d1, d2, r1, r2)
+    pub proof_scalars: Vec<[Scalar; PROOF_NUM_SCALARS]>,
 }
 
 impl CDSExample {
@@ -242,6 +243,34 @@ impl CDSExample {
     }
 
     #[cfg(test)]
+    fn verify_with_wrong_voting_key(
+        &self,
+        proof: StarkProof,
+        pub_inputs: PublicInputs,
+    ) -> Result<(), VerifierError> {
+        let mut pub_inputs = pub_inputs;
+        let mut rng = OsRng;
+        let fault_index = (rng.next_u32() as usize) % (pub_inputs.voting_keys.len());
+        let fault_position = (rng.next_u32() as usize) % (pub_inputs.voting_keys[0].len());
+        pub_inputs.voting_keys[fault_index][fault_position] += BaseElement::ONE;
+        winterfell::verify::<CDSAir>(proof, pub_inputs)
+    }
+
+    #[cfg(test)]
+    fn verify_with_wrong_encrypted_vote(
+        &self,
+        proof: StarkProof,
+        pub_inputs: PublicInputs,
+    ) -> Result<(), VerifierError> {
+        let mut pub_inputs = pub_inputs;
+        let mut rng = OsRng;
+        let fault_index = (rng.next_u32() as usize) % (pub_inputs.encrypted_votes.len());
+        let fault_position = (rng.next_u32() as usize) % (pub_inputs.encrypted_votes[0].len());
+        pub_inputs.encrypted_votes[fault_index][fault_position] += BaseElement::ONE;
+        winterfell::verify::<CDSAir>(proof, pub_inputs)
+    }
+
+    #[cfg(test)]
     fn verify_with_wrong_proof(
         &self,
         proof: StarkProof,
@@ -249,9 +278,9 @@ impl CDSExample {
     ) -> Result<(), VerifierError> {
         let mut pub_inputs = pub_inputs;
         let mut rng = OsRng;
-        let fault_index = (rng.next_u32() as usize) % (pub_inputs.proofs.len());
-        let fault_position = (rng.next_u32() as usize) % (pub_inputs.proofs[0].len());
-        pub_inputs.proofs[fault_index][fault_position] += BaseElement::ONE;
+        let fault_index = (rng.next_u32() as usize) % (pub_inputs.cds_proofs.len());
+        let fault_position = (rng.next_u32() as usize) % (pub_inputs.cds_proofs[0].len());
+        pub_inputs.cds_proofs[fault_index][fault_position] += BaseElement::ONE;
         winterfell::verify::<CDSAir>(proof, pub_inputs)
     }
 
@@ -376,43 +405,25 @@ pub fn naive_verify_cds_proofs(
 ) -> bool {
     // compute blinding keys
     let num_proofs = voting_keys.len();
-    let mut blinding_keys = Vec::with_capacity(num_proofs);
     let mut blinding_key = ProjectivePoint::identity();
+
     for i in 1..num_proofs {
         blinding_key -= voting_keys[i];
     }
+
     for i in 0..num_proofs {
-        blinding_keys.push(blinding_key);
+        verify_cds_proof(
+            i,
+            voting_keys[i],
+            blinding_key,
+            encrypted_votes[i],
+            &proof_points[i],
+            &proof_scalars[i],
+        );
+
         if i + 1 < num_proofs {
             blinding_key += voting_keys[i];
             blinding_key += voting_keys[i + 1];
-        }
-    }
-
-    for (i, (scalars, points)) in proof_scalars.iter().zip(proof_points.iter()).enumerate() {
-        let d1 = scalars[0];
-        let d2 = scalars[1];
-        let r1 = scalars[2];
-        let r2 = scalars[3];
-
-        let a1 = points[0];
-        let b1 = points[1];
-        let a2 = points[2];
-        let b2: ProjectivePoint = points[3];
-
-        let hash_message = points_to_hash_message(i, voting_keys[i], encrypted_votes[i], points);
-        let c_bytes = hash_message_bytes(&hash_message);
-        let c_bits = c_bytes.as_bits::<Lsb0>();
-        let c_scalar = Scalar::from_bits(c_bits);
-        if (c_scalar != d1 + d2)
-            || (a1 != ProjectivePoint::generator() * r1 + voting_keys[i] * d1)
-            || (b1
-                != blinding_keys[i] * r1 + (encrypted_votes[i] + ProjectivePoint::generator()) * d1)
-            || (a2 != ProjectivePoint::generator() * r2 + voting_keys[i] * d2)
-            || (b2
-                != blinding_keys[i] * r2 + (encrypted_votes[i] - ProjectivePoint::generator()) * d2)
-        {
-            return false;
         }
     }
 
@@ -420,12 +431,35 @@ pub fn naive_verify_cds_proofs(
 }
 
 #[inline]
-fn projective_to_elements(point: ProjectivePoint) -> [BaseElement; AFFINE_POINT_WIDTH] {
-    let mut result = [BaseElement::ZERO; AFFINE_POINT_WIDTH];
-    result[..POINT_COORDINATE_WIDTH].copy_from_slice(&AffinePoint::from(point).get_x());
-    result[POINT_COORDINATE_WIDTH..AFFINE_POINT_WIDTH]
-        .copy_from_slice(&AffinePoint::from(point).get_y());
-    result
+pub(crate) fn verify_cds_proof(
+    voter_index: usize,
+    voting_key: ProjectivePoint,
+    blinding_key: ProjectivePoint,
+    encrypted_vote: ProjectivePoint,
+    proof_points: &[ProjectivePoint; PROOF_NUM_POINTS],
+    proof_scalars: &[Scalar; PROOF_NUM_SCALARS],
+) -> bool {
+    let d1 = proof_scalars[0];
+    let d2 = proof_scalars[1];
+    let r1 = proof_scalars[2];
+    let r2 = proof_scalars[3];
+
+    let a1 = proof_points[0];
+    let b1 = proof_points[1];
+    let a2 = proof_points[2];
+    let b2 = proof_points[3];
+
+    let hash_message =
+        points_to_hash_message(voter_index, voting_key, encrypted_vote, proof_points);
+    let c_bytes = hash_message_bytes(&hash_message);
+    let c_bits = c_bytes.as_bits::<Lsb0>();
+    let c_scalar = Scalar::from_bits(c_bits);
+
+    (c_scalar == d1 + d2)
+        && (a1 == ProjectivePoint::generator() * r1 + voting_key * d1)
+        && (b1 == blinding_key * r1 + (encrypted_vote + ProjectivePoint::generator()) * d1)
+        && (a2 == ProjectivePoint::generator() * r2 + voting_key * d2)
+        && (b2 == blinding_key * r2 + (encrypted_vote - ProjectivePoint::generator()) * d2)
 }
 
 #[inline]
@@ -457,7 +491,6 @@ fn points_to_hash_message(
     hash_message
 }
 
-#[unroll_for_loops]
 #[inline]
 fn hash_message_bytes(message: &[BaseElement; HASH_MSG_LENGTH]) -> [u8; 32] {
     debug_assert!(
@@ -486,7 +519,6 @@ fn hash_message_bytes(message: &[BaseElement; HASH_MSG_LENGTH]) -> [u8; 32] {
     h_bytes
 }
 
-#[unroll_for_loops]
 #[inline]
 fn diff_registers<const NREGS: usize>(
     a: &[BaseElement],

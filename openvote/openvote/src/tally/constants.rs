@@ -6,7 +6,9 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-pub(crate) use super::ecc::{AFFINE_POINT_WIDTH, PROJECTIVE_POINT_WIDTH};
+pub(crate) use crate::utils::ecc::{
+    AFFINE_POINT_WIDTH, IDENTITY, POINT_COORDINATE_WIDTH, PROJECTIVE_POINT_WIDTH,
+};
 
 // CONSTANTS
 // ================================================================================================

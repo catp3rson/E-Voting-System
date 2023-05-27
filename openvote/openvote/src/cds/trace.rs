@@ -5,7 +5,6 @@
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
-use crate::utils::ecc::GENERATOR;
 
 use super::constants::*;
 use super::{ecc, field, rescue};
@@ -262,7 +261,7 @@ pub(crate) fn prepare_hash_message(
 /// Calculate two points (ev + G, ev - G)
 #[inline]
 pub(crate) fn prepare_encrypted_votes(
-    encrypted_vote: &[BaseElement],
+    encrypted_vote: &[BaseElement; AFFINE_POINT_WIDTH],
 ) -> (
     [BaseElement; AFFINE_POINT_WIDTH],
     [BaseElement; AFFINE_POINT_WIDTH],

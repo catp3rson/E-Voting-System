@@ -6,7 +6,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use ecc::PROJECTIVE_POINT_WIDTH;
+use self::constants::*;
+use super::utils::ecc;
 use rand_core::{OsRng, RngCore};
 use winterfell::{
     math::{
@@ -26,10 +27,6 @@ use log::debug;
 use std::time::Instant;
 #[cfg(feature = "std")]
 use winterfell::{math::log2, Trace};
-
-use crate::utils::ecc::IDENTITY;
-
-use super::utils::ecc::{self, AFFINE_POINT_WIDTH, POINT_COORDINATE_WIDTH};
 
 pub(crate) mod constants;
 
@@ -70,7 +67,7 @@ pub struct TallyExample {
     /// Encrypted votes of registered voters
     pub encrypted_votes: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
     /// Tally result
-    pub tally_result: u64,
+    pub tally_result: u32,
 }
 
 impl TallyExample {
@@ -78,7 +75,7 @@ impl TallyExample {
     pub fn new(options: ProofOptions, num_votes: usize) -> TallyExample {
         // compute the encrypted votes
         let mut rng = OsRng;
-        let tally_result = rng.next_u64() % ((num_votes + 1) as u64);
+        let tally_result = rng.next_u32() % ((num_votes + 1) as u32);
         let mut encrypted_votes = Vec::with_capacity(num_votes);
 
         let d = Scalar::from(tally_result).double() - Scalar::from(num_votes as u64);
@@ -178,7 +175,7 @@ impl TallyExample {
             tally_result: self.tally_result,
         };
         while pub_inputs.tally_result == self.tally_result {
-            pub_inputs.tally_result = rng.next_u64() % ((num_votes + 1) as u64);
+            pub_inputs.tally_result = rng.next_u32() % ((num_votes + 1) as u32);
         }
         winterfell::verify::<TallyAir>(proof, pub_inputs)
     }
@@ -191,7 +188,7 @@ impl TallyExample {
 /// Naively verify the tally result
 pub fn naive_verify_tally_result(
     encrypted_votes: &Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
-    tally_result: u64,
+    tally_result: u32,
 ) -> bool {
     let num_votes = encrypted_votes.len();
     let mut encrypted_sum = IDENTITY;

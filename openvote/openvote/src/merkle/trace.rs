@@ -1,4 +1,3 @@
-use crate::schnorr::constants::{AFFINE_POINT_WIDTH, POINT_COORDINATE_WIDTH};
 // Copyright (c) 2021-2022 Toposware, Inc.
 //
 // Licensed under the Apache License, Version 2.0 <LICENSE-APACHE or
@@ -6,11 +5,9 @@ use crate::schnorr::constants::{AFFINE_POINT_WIDTH, POINT_COORDINATE_WIDTH};
 // <LICENSE-MIT or http://opensource.org/licenses/MIT>, at your
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
-use crate::utils::rescue::RATE_WIDTH;
 
 use super::constants::*;
 use super::rescue;
-use rescue::NUM_HASH_ROUNDS;
 use winterfell::math::{fields::f63::BaseElement, FieldElement};
 
 // TRACE INITIALIZATION
@@ -31,7 +28,7 @@ pub(crate) fn init_merkle_verification_state(
 
 pub(crate) fn update_merkle_verification_state(
     step: usize,
-    hash_message: &[BaseElement; (TREE_DEPTH + 1) * RATE_WIDTH],
+    hash_message: &[BaseElement; (TREE_DEPTH + 1) * DIGEST_SIZE],
     hash_index: usize,
     state: &mut [BaseElement],
 ) {

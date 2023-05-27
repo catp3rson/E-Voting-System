@@ -6,10 +6,8 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
-use super::ecc;
 use super::{constants::*, projective_to_elements};
-use crate::utils::not;
-use ecc::POINT_COORDINATE_WIDTH;
+use crate::utils::{ecc, not};
 use winterfell::math::curves::curve_f63::AffinePoint;
 use winterfell::{
     math::{curves::curve_f63::Scalar, fields::f63::BaseElement, FieldElement},
@@ -25,22 +23,22 @@ use alloc::vec::Vec;
 
 pub struct PublicInputs {
     pub encrypted_votes: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
-    pub tally_result: u64,
+    pub tally_result: u32,
 }
 
 impl Serializable for PublicInputs {
     fn write_into<W: ByteWriter>(&self, target: &mut W) {
+        target.write(Scalar::from(self.tally_result));
         for encrypted_vote in self.encrypted_votes.iter() {
             Serializable::write_batch_into(encrypted_vote, target);
         }
-        target.write(Scalar::from(self.tally_result));
     }
 }
 
 pub struct TallyAir {
     context: AirContext<BaseElement>,
     encrypted_votes: Vec<[BaseElement; AFFINE_POINT_WIDTH]>,
-    tally_result: u64,
+    tally_result: u32,
 }
 
 impl Air for TallyAir {

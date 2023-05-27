@@ -10,7 +10,7 @@
 //! state-transition AIR program.
 
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![deny(broken_intra_doc_links)]
+#![deny(rustdoc::broken_intra_doc_links)]
 #![deny(missing_debug_implementations)]
 #![deny(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
@@ -20,6 +20,11 @@
 #[macro_use]
 extern crate alloc;
 
+#[cfg(test)]
+mod proof_size;
+
+/// Module for off-chain aggregator
+pub mod aggregator;
 /// The CDS sub-AIR program
 pub mod cds;
 /// The Merkle proof of membership sub-AIR program
@@ -30,3 +35,5 @@ pub mod schnorr;
 pub mod tally;
 /// Utility module
 pub mod utils;
+/// Module for on-chain verifier
+pub mod verifier;
