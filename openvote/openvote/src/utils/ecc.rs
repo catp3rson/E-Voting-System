@@ -51,6 +51,7 @@ pub const GENERATOR: [BaseElement; AFFINE_POINT_WIDTH] = [
 //     BaseElement::from_raw_unchecked(0x1e74f61082f15620),
 // ];
 
+/// Identity point
 pub const IDENTITY: [BaseElement; PROJECTIVE_POINT_WIDTH] = [
     BaseElement::ZERO,
     BaseElement::ZERO,
@@ -72,6 +73,7 @@ pub const IDENTITY: [BaseElement; PROJECTIVE_POINT_WIDTH] = [
     BaseElement::ZERO,
 ];
 
+/// Parameter of curve
 pub const B3: [BaseElement; POINT_COORDINATE_WIDTH] = [
     BaseElement::new(4580716109223965136),
     BaseElement::new(2805468717395796313),

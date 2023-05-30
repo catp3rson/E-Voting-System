@@ -463,7 +463,7 @@ pub(crate) fn verify_cds_proof(
 }
 
 #[inline]
-fn concat_proof_points(
+pub(crate) fn concat_proof_points(
     proof_points: &[ProjectivePoint; PROOF_NUM_POINTS],
 ) -> [BaseElement; AFFINE_POINT_WIDTH * PROOF_NUM_POINTS] {
     let mut result = [BaseElement::ZERO; AFFINE_POINT_WIDTH * PROOF_NUM_POINTS];

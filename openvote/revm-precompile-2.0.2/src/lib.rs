@@ -1,4 +1,4 @@
-#![no_std]
+// #![no_std]
 
 mod blake2;
 mod bn128;
@@ -6,7 +6,7 @@ mod hash;
 mod identity;
 mod modexp;
 mod secp256k1;
-// mod openvote;
+mod openvote;
 
 use once_cell::sync::OnceCell;
 pub use primitives::{
@@ -183,6 +183,8 @@ impl Precompiles {
                 vec![
                     // EIP-2565: ModExp Gas Cost.
                     modexp::BERLIN,
+                    // Pre-compiled contract for STARK verifier functions
+                    openvote::STARK_VERIFIER,
                 ]
                 .into_iter()
                 .map(From::from),

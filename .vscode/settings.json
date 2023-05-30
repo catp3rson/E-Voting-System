@@ -1,0 +1,5 @@
+{
+    "rust-analyzer.linkedProjects": [
+        "./openvote/openvote/Cargo.toml"
+    ]
+}

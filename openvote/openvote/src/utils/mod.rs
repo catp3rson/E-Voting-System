@@ -12,7 +12,7 @@ use winterfell::math::FieldElement;
 use alloc::vec::Vec;
 
 /// An elliptic curve group operation utility module
-pub(crate) mod ecc;
+pub mod ecc;
 /// A field operation utility module
 pub(crate) mod field;
 /// A periodic values utility module

@@ -17,7 +17,7 @@ pub(crate) use super::rescue::{
 // CONSTANTS
 // ================================================================================================
 
-// Max message length (in BaseElement) of a Schnorr signature
+/// Max message length (in BaseElement) of a Schnorr signature
 pub const MSG_LENGTH: usize = AFFINE_POINT_WIDTH * 2 + 4;
 
 // Rescue constants

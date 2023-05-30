@@ -56,3 +56,11 @@ harness = false
 [[bench]]
 name = "tally"
 harness = false
+
+[[bin]]
+name = "proof-size"
+path = "src/bin/proof_size.rs"
+
+[[bin]]
+name = "generate-example"
+path = "src/bin/generate_example.rs"

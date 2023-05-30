@@ -92,9 +92,9 @@ pub struct VoterRegistar {
     pub addresses: Vec<Address>,
 
     /// Set to true if cached proof is outdated
-    dirty_flag: bool,
+    pub dirty_flag: bool,
     /// Cached proof
-    serialized_proof: Vec<u8>,
+    pub serialized_proof: Vec<u8>,
 }
 
 impl VoterRegistar {
@@ -307,8 +307,8 @@ impl VoterRegistar {
         use rand_core::{OsRng, RngCore};
 
         let mut serialized_proof = self.get_register_proof()?;
-        let pub_inputs_nbytes = self.voting_keys.len()
-            * (BYTES_PER_VOTING_KEY + BYTES_PER_ADDRESS + BYTES_PER_SIGNATURE);
+        let pub_inputs_nbytes =
+            self.voting_keys.len() * (BYTES_PER_AFFINE + BYTES_PER_ADDRESS + BYTES_PER_SIGNATURE);
         let fault_position = 4 + ((OsRng.next_u32() as usize) % pub_inputs_nbytes);
         serialized_proof[fault_position] ^= 1;
 
@@ -321,8 +321,8 @@ impl VoterRegistar {
         use rand_core::{OsRng, RngCore};
 
         let mut serialized_proof = self.get_register_proof()?;
-        let pub_inputs_nbytes = self.voting_keys.len()
-            * (BYTES_PER_VOTING_KEY + BYTES_PER_ADDRESS + BYTES_PER_SIGNATURE);
+        let pub_inputs_nbytes =
+            self.voting_keys.len() * (BYTES_PER_AFFINE + BYTES_PER_ADDRESS + BYTES_PER_SIGNATURE);
         let proof_nbytes = serialized_proof.len() - 4 - pub_inputs_nbytes;
         let fault_position = 4 + pub_inputs_nbytes + ((OsRng.next_u32() as usize) % proof_nbytes);
         serialized_proof[fault_position] ^= 1;

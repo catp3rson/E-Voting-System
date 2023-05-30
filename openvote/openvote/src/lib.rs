@@ -20,9 +20,6 @@
 #[macro_use]
 extern crate alloc;
 
-#[cfg(test)]
-mod proof_size;
-
 /// Module for off-chain aggregator
 pub mod aggregator;
 /// The CDS sub-AIR program

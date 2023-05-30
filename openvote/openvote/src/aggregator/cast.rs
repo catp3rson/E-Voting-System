@@ -122,9 +122,9 @@ pub struct VoteCollector {
     pub proof_scalars: Vec<Option<[Scalar; PROOF_NUM_SCALARS]>>,
 
     /// Number of valid encrypted votes received
-    num_valid_votes: usize,
+    pub num_valid_votes: usize,
     /// Cached proof
-    serialized_proof: Vec<u8>,
+    pub serialized_proof: Vec<u8>,
 }
 
 impl VoteCollector {

@@ -26,7 +26,7 @@ pub fn verify_register_proof(
     let mut tmp = [0u8; 4];
     tmp.copy_from_slice(&register_proof[..4]);
     let num_regs = u32::from_le_bytes(tmp) as usize;
-    let mut bound = 4 + BYTES_PER_VOTING_KEY * num_regs;
+    let mut bound = 4 + BYTES_PER_AFFINE * num_regs;
     let merkle_pub_inputs_bytes = [&elg_root_bytes, &register_proof[..bound]].concat();
     let merkle_pub_inputs = MerklePublicInputs::from_bytes(&merkle_pub_inputs_bytes)?;
     // Deserialize Schnorr public inputs
@@ -55,12 +55,14 @@ pub fn verify_cast_proof(
     tmp.copy_from_slice(&cast_proof[..4]);
     let num_proofs = u32::from_le_bytes(tmp) as usize;
     tmp.copy_from_slice(&voting_keys[..4]);
+    tmp.reverse();
     if num_proofs != (u32::from_le_bytes(tmp) as usize) {
         return Err(DeserializationError::InvalidValue(String::from(
             "Number of CDS proofs submitted does not match number of voting keys.",
         )));
     }
-    let cds_pub_inputs = CDSPublicInputs::from_bytes(&[voting_keys, &cast_proof[4..]].concat())?;
+    let cds_pub_inputs =
+        CDSPublicInputs::from_bytes(&[&tmp, &voting_keys[4..], &cast_proof[4..]].concat())?;
     let bound = 4 + num_proofs * (2 * 5 * AFFINE_POINT_WIDTH * BYTES_PER_ELEMENT);
     let cds_proof = StarkProof::from_bytes(&cast_proof[bound..])?;
 
